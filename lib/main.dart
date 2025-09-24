@@ -1,16 +1,15 @@
 import 'package:flutter/material.dart';
-// INI ADALAH IMPORT YANG BENAR:
-import 'package:flutter_neumorphic_plus/flutter_neumorphic_plus.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:http/http.dart' as http;
 import 'package:provider/provider.dart';
 import 'dart:convert';
 
-// URL Google Apps Script Anda
+// =======================================================================
+// !!! PENTING: Ganti URL di bawah ini dengan URL Web App dari Google Apps Script Anda !!!
 const String googleAppScriptUrl =
     "https://script.google.com/macros/s/AKfycbz7NYjCYWMnwnnKZFryrWUnefhkVvo2iEEy_zjGhjPjO2uyzT42kjKPoQtx4Lv4Aye4Kw/exec";
+// =======================================================================
 
-// --- State Management (Tidak berubah) ---
+// --- Data Model & State Management ---
 class AppState extends ChangeNotifier {
   bool _isLoggedIn = false;
   bool _isLoading = false;
@@ -72,19 +71,30 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return NeumorphicApp(
+    return MaterialApp(
+      // --- BARIS INI DITAMBAHKAN UNTUK MENGHILANGKAN BANNER DEBUG ---
       debugShowCheckedModeBanner: false,
+      // -----------------------------------------------------------
       title: 'Data Usulan App',
-      themeMode: ThemeMode.light,
-      theme: NeumorphicThemeData(
-        baseColor: Color(0xFFF0F2F5),
-        lightSource: LightSource.topLeft,
-        depth: 10,
-      ),
-      darkTheme: NeumorphicThemeData(
-        baseColor: Color(0xFF3E3E3E),
-        lightSource: LightSource.topLeft,
-        depth: 6,
+      theme: ThemeData(
+        primarySwatch: Colors.teal,
+        useMaterial3: true,
+        scaffoldBackgroundColor: Colors.grey[100],
+        appBarTheme: const AppBarTheme(
+          backgroundColor: Colors.teal,
+          foregroundColor: Colors.white,
+          elevation: 4,
+        ),
+        elevatedButtonTheme: ElevatedButtonThemeData(
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.teal,
+            foregroundColor: Colors.white,
+            padding: const EdgeInsets.symmetric(vertical: 16),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+        ),
       ),
       home: Consumer<AppState>(
         builder: (context, appState, _) {
@@ -95,195 +105,8 @@ class MyApp extends StatelessWidget {
   }
 }
 
-// --- HomePage (Desain Baru) ---
-class HomePage extends StatelessWidget {
-  const HomePage({super.key});
+// --- Screens ---
 
-  @override
-  Widget build(BuildContext context) {
-    final neumorphicColor = NeumorphicTheme.baseColor(context);
-
-    return Scaffold(
-      backgroundColor: neumorphicColor,
-      body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // 1. App Bar Kustom
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  NeumorphicButton(
-                    onPressed: () {
-                      // Aksi untuk tombol menu
-                    },
-                    style: NeumorphicStyle(
-                      boxShape: NeumorphicBoxShape.circle(),
-                    ),
-                    child: const Icon(Icons.menu, color: Colors.black54),
-                  ),
-                  Row(
-                    children: [
-                      NeumorphicButton(
-                        onPressed: () {},
-                        style: NeumorphicStyle(
-                          boxShape: NeumorphicBoxShape.circle(),
-                        ),
-                        child: const Icon(
-                          Icons.chat_bubble_outline,
-                          color: Colors.black54,
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      NeumorphicButton(
-                        onPressed: () => Provider.of<AppState>(
-                          context,
-                          listen: false,
-                        ).logout(),
-                        style: NeumorphicStyle(
-                          boxShape: NeumorphicBoxShape.circle(),
-                        ),
-                        child: const Icon(
-                          Icons.notifications_none,
-                          color: Colors.black54,
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-              const SizedBox(height: 32),
-
-              // 2. Judul "Menu Utama"
-              Padding(
-                padding: const EdgeInsets.only(left: 8.0),
-                child: Text(
-                  'Menu Utama',
-                  style: GoogleFonts.playfairDisplay(
-                    fontSize: 42,
-                    fontWeight: FontWeight.w700,
-                    color: Colors.black87,
-                  ),
-                ),
-              ),
-              const SizedBox(height: 40),
-
-              // 3. Tombol Tambah Data Usulan
-              NeumorphicButton(
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => const AddFormPage()),
-                  );
-                },
-                style: NeumorphicStyle(
-                  shape: NeumorphicShape.flat,
-                  boxShape: NeumorphicBoxShape.roundRect(
-                    BorderRadius.circular(20),
-                  ),
-                  depth: 8,
-                  lightSource: LightSource.topLeft,
-                  color: neumorphicColor,
-                ),
-                padding: const EdgeInsets.all(20),
-                child: Row(
-                  children: [
-                    const Icon(
-                      Icons.add_circle,
-                      color: Color(0xFF00BFA5),
-                      size: 28,
-                    ),
-                    const SizedBox(width: 16),
-                    Text(
-                      'Tambah Data Usulan',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.grey[700],
-                      ),
-                    ),
-                    const Spacer(),
-                    const Icon(Icons.chevron_right, color: Colors.grey),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 24),
-
-              // 4. Tombol Cek Data Usulan
-              NeumorphicButton(
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => const SearchPage()),
-                  );
-                },
-                style: NeumorphicStyle(
-                  shape: NeumorphicShape.flat,
-                  boxShape: NeumorphicBoxShape.roundRect(
-                    BorderRadius.circular(20),
-                  ),
-                  depth: 8,
-                  lightSource: LightSource.topLeft,
-                  color: neumorphicColor,
-                ),
-                padding: const EdgeInsets.all(20),
-                child: Row(
-                  children: [
-                    const Icon(
-                      Icons.search,
-                      color: Color(0xFF00BFA5),
-                      size: 28,
-                    ),
-                    const SizedBox(width: 16),
-                    Text(
-                      'Cek Data Usulan',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.grey[700],
-                      ),
-                    ),
-                    const Spacer(),
-                    const Icon(Icons.search, color: Colors.grey),
-                  ],
-                ),
-              ),
-
-              const Spacer(),
-
-              // 5. Placeholder untuk Dashboard
-              Neumorphic(
-                style: NeumorphicStyle(
-                  boxShape: NeumorphicBoxShape.roundRect(
-                    BorderRadius.circular(15),
-                  ),
-                  depth: -5,
-                  color: neumorphicColor,
-                ),
-                child: SizedBox(
-                  height: 150,
-                  width: double.infinity,
-                  child: Center(
-                    child: Text(
-                      'Placeholder untuk Dashboard',
-                      style: TextStyle(color: Colors.grey[500]),
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 20),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-// --- Kode untuk LoginPage, SearchPage, AddFormPage, dll ---
-// Halaman lain masih menggunakan desain standar, namun fungsionalitas tetap berjalan.
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
 
@@ -356,6 +179,59 @@ class _LoginPageState extends State<LoginPage> {
                             child: const Text('LOGIN'),
                           ),
                         );
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class HomePage extends StatelessWidget {
+  const HomePage({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Menu Utama'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.logout),
+            onPressed: () =>
+                Provider.of<AppState>(context, listen: false).logout(),
+            tooltip: 'Logout',
+          ),
+        ],
+      ),
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(32.0),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              ElevatedButton.icon(
+                icon: const Icon(Icons.add_circle_outline),
+                label: const Text('Tambah Data Usulan'),
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const AddFormPage()),
+                  );
+                },
+              ),
+              const SizedBox(height: 20),
+              ElevatedButton.icon(
+                icon: const Icon(Icons.search),
+                label: const Text('Cek Data Usulan'),
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const SearchPage()),
+                  );
                 },
               ),
             ],
@@ -635,6 +511,7 @@ class _AddFormPageState extends State<AddFormPage> {
                 if (isLastStep) {
                   _submitForm();
                 } else {
+                  // Validasi form sebelum lanjut
                   if (_formKeys[_currentStep].currentState!.validate()) {
                     setState(() => _currentStep += 1);
                   }
