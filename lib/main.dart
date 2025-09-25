@@ -95,7 +95,6 @@ class HomePage extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       body: Container(
-        // PERUBAHAN UTAMA: Mengganti warna gradasi
         width: double.infinity,
         height: double.infinity,
         decoration: const BoxDecoration(
@@ -184,96 +183,123 @@ class HomePage extends StatelessWidget {
                   ),
                   const SizedBox(height: 20),
 
-                  // Kartu Grafik
-                  Container(
-                    padding: const EdgeInsets.all(20),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          'Account Suplant',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                            color: Color(0xFF1B1D28),
+                  // ======================================================
+                  // == PERBAIKAN BARU DIMULAI DARI SINI ==
+                  // ======================================================
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Kartu Kiri: Account Suplant
+                      Expanded(
+                        child: Container(
+                          padding: const EdgeInsets.all(20),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(20),
                           ),
-                        ),
-                        Row(
-                          children: [
-                            const Text(
-                              '278%',
-                              style: TextStyle(
-                                fontSize: 24,
-                                fontWeight: FontWeight.bold,
-                                color: Color(0xFF1B1D28),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'Account Suplant',
+                                style: TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                  color: Color(0xFF1B1D28),
+                                ),
                               ),
-                            ),
-                            const SizedBox(width: 10),
-                            Container(
-                              padding: const EdgeInsets.all(5),
-                              decoration: const BoxDecoration(
-                                shape: BoxShape.circle,
-                                color: Color(0x3327AE60),
-                              ),
-                              child: Icon(
-                                PhosphorIcons.arrowUp(),
-                                size: 16,
-                                color: Color(0xFF27AE60),
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 20),
-                        SizedBox(
-                          height: 120,
-                          child: LineChart(
-                            LineChartData(
-                              gridData: FlGridData(show: false),
-                              titlesData: FlTitlesData(show: false),
-                              borderData: FlBorderData(show: false),
-                              lineBarsData: [
-                                LineChartBarData(
-                                  spots: const [
-                                    FlSpot(0, 1),
-                                    FlSpot(1, 1.5),
-                                    FlSpot(2, 1.4),
-                                    FlSpot(3, 3.4),
-                                    FlSpot(4, 2),
-                                    FlSpot(5, 2.2),
-                                    FlSpot(6, 1.8),
-                                  ],
-                                  isCurved: true,
-                                  color: const Color(0xFF00BFA5),
-                                  barWidth: 4,
-                                  isStrokeCapRound: true,
-                                  dotData: FlDotData(show: false),
-                                  belowBarData: BarAreaData(
-                                    show: true,
-                                    gradient: LinearGradient(
-                                      colors: [
-                                        const Color(
-                                          0xFF00BFA5,
-                                        ).withOpacity(0.3),
-                                        const Color(
-                                          0xFF00BFA5,
-                                        ).withOpacity(0.0),
-                                      ],
-                                      begin: Alignment.topCenter,
-                                      end: Alignment.bottomCenter,
+                              const SizedBox(height: 5),
+                              Row(
+                                children: [
+                                  const Text(
+                                    '278%',
+                                    style: TextStyle(
+                                      fontSize: 24,
+                                      fontWeight: FontWeight.bold,
+                                      color: Color(0xFF1B1D28),
                                     ),
                                   ),
-                                ),
-                              ],
-                            ),
+                                  const SizedBox(width: 10),
+                                  Container(
+                                    padding: const EdgeInsets.all(5),
+                                    decoration: const BoxDecoration(
+                                      shape: BoxShape.circle,
+                                      color: Color(0x3327AE60),
+                                    ),
+                                    child: Icon(
+                                      PhosphorIcons.arrowUp(),
+                                      size: 16,
+                                      color: const Color(0xFF27AE60),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
                           ),
                         ),
-                      ],
-                    ),
+                      ),
+
+                      const SizedBox(width: 20), // Jarak antar kartu
+                      // Kartu Kanan: Grafik
+                      Expanded(
+                        child: Container(
+                          padding: const EdgeInsets.all(20),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'Grafik Penjualan',
+                                style: TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                  color: Color(0xFF1B1D28),
+                                ),
+                              ),
+                              const SizedBox(height: 20),
+                              SizedBox(
+                                height:
+                                    50, // Sesuaikan tinggi grafik jika perlu
+                                child: LineChart(
+                                  LineChartData(
+                                    gridData: FlGridData(show: false),
+                                    titlesData: FlTitlesData(show: false),
+                                    borderData: FlBorderData(show: false),
+                                    lineBarsData: [
+                                      LineChartBarData(
+                                        spots: const [
+                                          FlSpot(0, 1),
+                                          FlSpot(1, 1.5),
+                                          FlSpot(2, 1.4),
+                                          FlSpot(3, 3.4),
+                                          FlSpot(4, 2),
+                                          FlSpot(5, 2.2),
+                                          FlSpot(6, 1.8),
+                                        ],
+                                        isCurved: true,
+                                        color: const Color(0xFF00BFA5),
+                                        barWidth: 4,
+                                        isStrokeCapRound: true,
+                                        dotData: FlDotData(show: false),
+                                        belowBarData: BarAreaData(show: false),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
+
+                  // ======================================================
+                  // == AKHIR DARI BAGIAN YANG DIPERBAIKI ==
+                  // ======================================================
                   const SizedBox(height: 30),
 
                   // Quick Actions
@@ -391,7 +417,7 @@ class HomePage extends StatelessWidget {
   }
 }
 
-// --- Widget Kustom dan Halaman Lainnya ---
+// --- Widget Kustom dan Halaman Lainnya (TIDAK ADA PERUBAHAN) ---
 
 class StatCard extends StatelessWidget {
   final String title;
