@@ -1,15 +1,15 @@
 import 'package:flutter/material.dart';
+import 'package:fl_chart/fl_chart.dart';
+import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:http/http.dart' as http;
 import 'package:provider/provider.dart';
 import 'dart:convert';
 
-// =======================================================================
-// !!! PENTING: Ganti URL di bawah ini dengan URL Web App dari Google Apps Script Anda !!!
+// URL Google Apps Script Anda
 const String googleAppScriptUrl =
     "https://script.google.com/macros/s/AKfycbz7NYjCYWMnwnnKZFryrWUnefhkVvo2iEEy_zjGhjPjO2uyzT42kjKPoQtx4Lv4Aye4Kw/exec";
-// =======================================================================
 
-// --- Data Model & State Management ---
+// --- State Management ---
 class AppState extends ChangeNotifier {
   bool _isLoggedIn = false;
   bool _isLoading = false;
@@ -72,29 +72,11 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      // --- BARIS INI DITAMBAHKAN UNTUK MENGHILANGKAN BANNER DEBUG ---
       debugShowCheckedModeBanner: false,
-      // -----------------------------------------------------------
       title: 'Data Usulan App',
       theme: ThemeData(
-        primarySwatch: Colors.teal,
-        useMaterial3: true,
-        scaffoldBackgroundColor: Colors.grey[100],
-        appBarTheme: const AppBarTheme(
-          backgroundColor: Colors.teal,
-          foregroundColor: Colors.white,
-          elevation: 4,
-        ),
-        elevatedButtonTheme: ElevatedButtonThemeData(
-          style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.teal,
-            foregroundColor: Colors.white,
-            padding: const EdgeInsets.symmetric(vertical: 16),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
-          ),
-        ),
+        scaffoldBackgroundColor: const Color(0xFFF0F8F7),
+        fontFamily: 'Inter',
       ),
       home: Consumer<AppState>(
         builder: (context, appState, _) {
@@ -105,11 +87,467 @@ class MyApp extends StatelessWidget {
   }
 }
 
-// --- Screens ---
+// --- HomePage ---
+class HomePage extends StatelessWidget {
+  const HomePage({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: Container(
+        // PERUBAHAN UTAMA: Mengganti warna gradasi
+        width: double.infinity,
+        height: double.infinity,
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              Color(0xFFE0F2F1), // Warna Teal Muda di atas
+              Colors.white, // Warna Putih Tulang di bawah
+            ],
+          ),
+        ),
+        child: SingleChildScrollView(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(
+              horizontal: 20.0,
+              vertical: 40.0,
+            ),
+            child: SafeArea(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Header Kustom
+                  Row(
+                    children: [
+                      Container(
+                        width: 50,
+                        height: 50,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF00BFA5),
+                          borderRadius: BorderRadius.circular(15),
+                        ),
+                        child: Icon(
+                          PhosphorIcons.user(),
+                          color: Colors.white,
+                          size: 28,
+                        ),
+                      ),
+                      const SizedBox(width: 15),
+                      const Text(
+                        'Menu Utama',
+                        style: TextStyle(
+                          fontSize: 22,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF1B1D28),
+                        ),
+                      ),
+                      const Spacer(),
+                      const CircleAvatar(
+                        backgroundImage: NetworkImage(
+                          'https://i.pravatar.cc/150?u=a042581f4e29026704d',
+                        ),
+                        radius: 25,
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 30),
+
+                  // Kartu Statistik
+                  Row(
+                    children: [
+                      Expanded(
+                        child: StatCard(
+                          title: 'Menu Utama',
+                          value: '14.5%',
+                          icon: PhosphorIcons.checkCircle(
+                            PhosphorIconsStyle.fill,
+                          ),
+                          iconColor: Colors.white,
+                          iconBgColor: const Color(0xFF27AE60),
+                        ),
+                      ),
+                      const SizedBox(width: 20),
+                      Expanded(
+                        child: StatCard(
+                          title: 'Recent Digestion',
+                          value: '13.8%',
+                          icon: PhosphorIcons.arrowClockwise(
+                            PhosphorIconsStyle.regular,
+                          ),
+                          iconColor: Colors.white,
+                          iconBgColor: const Color(0xFFF2994A),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 20),
+
+                  // Kartu Grafik
+                  Container(
+                    padding: const EdgeInsets.all(20),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Account Suplant',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFF1B1D28),
+                          ),
+                        ),
+                        Row(
+                          children: [
+                            const Text(
+                              '278%',
+                              style: TextStyle(
+                                fontSize: 24,
+                                fontWeight: FontWeight.bold,
+                                color: Color(0xFF1B1D28),
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            Container(
+                              padding: const EdgeInsets.all(5),
+                              decoration: const BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: Color(0x3327AE60),
+                              ),
+                              child: Icon(
+                                PhosphorIcons.arrowUp(),
+                                size: 16,
+                                color: Color(0xFF27AE60),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 20),
+                        SizedBox(
+                          height: 120,
+                          child: LineChart(
+                            LineChartData(
+                              gridData: FlGridData(show: false),
+                              titlesData: FlTitlesData(show: false),
+                              borderData: FlBorderData(show: false),
+                              lineBarsData: [
+                                LineChartBarData(
+                                  spots: const [
+                                    FlSpot(0, 1),
+                                    FlSpot(1, 1.5),
+                                    FlSpot(2, 1.4),
+                                    FlSpot(3, 3.4),
+                                    FlSpot(4, 2),
+                                    FlSpot(5, 2.2),
+                                    FlSpot(6, 1.8),
+                                  ],
+                                  isCurved: true,
+                                  color: const Color(0xFF00BFA5),
+                                  barWidth: 4,
+                                  isStrokeCapRound: true,
+                                  dotData: FlDotData(show: false),
+                                  belowBarData: BarAreaData(
+                                    show: true,
+                                    gradient: LinearGradient(
+                                      colors: [
+                                        const Color(
+                                          0xFF00BFA5,
+                                        ).withOpacity(0.3),
+                                        const Color(
+                                          0xFF00BFA5,
+                                        ).withOpacity(0.0),
+                                      ],
+                                      begin: Alignment.topCenter,
+                                      end: Alignment.bottomCenter,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 30),
+
+                  // Quick Actions
+                  const Text(
+                    'Recent Activities',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF1B1D28),
+                    ),
+                  ),
+                  const SizedBox(height: 15),
+                  QuickActionCard(
+                    icon: PhosphorIcons.lightning(PhosphorIconsStyle.fill),
+                    title: 'Quick Action',
+                    subtitle: 'Tambah Data Usulan',
+                    iconBgColor: const Color(0xFF00BFA5),
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const AddFormPage()),
+                      );
+                    },
+                  ),
+                  const SizedBox(height: 20),
+
+                  // Tombol Bawah
+                  Row(
+                    children: [
+                      Expanded(
+                        child: BottomButton(
+                          text: 'Tambah Data',
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => const AddFormPage(),
+                              ),
+                            );
+                          },
+                          isPrimary: false,
+                        ),
+                      ),
+                      const SizedBox(width: 20),
+                      Expanded(
+                        child: BottomButton(
+                          text: 'Cek Data',
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => const SearchPage(),
+                              ),
+                            );
+                          },
+                          isPrimary: true,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+      bottomNavigationBar: Container(
+        height: 70,
+        decoration: const BoxDecoration(
+          color: Color(0xFF00BFA5),
+          borderRadius: BorderRadius.only(
+            topLeft: Radius.circular(20),
+            topRight: Radius.circular(20),
+          ),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceAround,
+          children: [
+            IconButton(
+              icon: Icon(
+                PhosphorIcons.house(PhosphorIconsStyle.fill),
+                color: Colors.white,
+                size: 28,
+              ),
+              onPressed: () {},
+            ),
+            IconButton(
+              icon: Icon(
+                PhosphorIcons.squaresFour(),
+                color: Colors.white.withOpacity(0.6),
+                size: 28,
+              ),
+              onPressed: () {},
+            ),
+            IconButton(
+              icon: Icon(
+                PhosphorIcons.magnifyingGlass(),
+                color: Colors.white.withOpacity(0.6),
+                size: 28,
+              ),
+              onPressed: () {},
+            ),
+            IconButton(
+              icon: Icon(
+                PhosphorIcons.user(),
+                color: Colors.white.withOpacity(0.6),
+                size: 28,
+              ),
+              onPressed: () {},
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// --- Widget Kustom dan Halaman Lainnya ---
+
+class StatCard extends StatelessWidget {
+  final String title;
+  final String value;
+  final IconData icon;
+  final Color iconColor;
+  final Color iconBgColor;
+
+  const StatCard({
+    Key? key,
+    required this.title,
+    required this.value,
+    required this.icon,
+    required this.iconColor,
+    required this.iconBgColor,
+  }) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(15),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: iconBgColor,
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(icon, color: iconColor, size: 20),
+          ),
+          const SizedBox(height: 10),
+          Text(title, style: const TextStyle(color: Colors.grey, fontSize: 14)),
+          const SizedBox(height: 5),
+          Text(
+            value,
+            style: const TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: Color(0xFF1B1D28),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class QuickActionCard extends StatelessWidget {
+  final IconData icon;
+  final Color iconBgColor;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+
+  const QuickActionCard({
+    Key? key,
+    required this.icon,
+    required this.iconBgColor,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+  }) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(15),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: iconBgColor,
+                borderRadius: BorderRadius.circular(15),
+              ),
+              child: Icon(icon, color: Colors.white, size: 24),
+            ),
+            const SizedBox(width: 15),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF1B1D28),
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  subtitle,
+                  style: const TextStyle(color: Colors.grey, fontSize: 14),
+                ),
+              ],
+            ),
+            const Spacer(),
+            const Icon(Icons.chevron_right, color: Colors.grey, size: 28),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class BottomButton extends StatelessWidget {
+  final String text;
+  final bool isPrimary;
+  final VoidCallback onTap;
+
+  const BottomButton({
+    Key? key,
+    required this.text,
+    required this.isPrimary,
+    required this.onTap,
+  }) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 18),
+        decoration: BoxDecoration(
+          color: isPrimary ? const Color(0xFF00BFA5) : const Color(0x1A00BFA5),
+          borderRadius: BorderRadius.circular(15),
+        ),
+        child: Center(
+          child: Text(
+            text,
+            style: TextStyle(
+              color: isPrimary ? Colors.white : const Color(0xFF00BFA5),
+              fontWeight: FontWeight.bold,
+              fontSize: 16,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
-
   @override
   State<LoginPage> createState() => _LoginPageState();
 }
@@ -189,62 +627,8 @@ class _LoginPageState extends State<LoginPage> {
   }
 }
 
-class HomePage extends StatelessWidget {
-  const HomePage({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Menu Utama'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.logout),
-            onPressed: () =>
-                Provider.of<AppState>(context, listen: false).logout(),
-            tooltip: 'Logout',
-          ),
-        ],
-      ),
-      body: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(32.0),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              ElevatedButton.icon(
-                icon: const Icon(Icons.add_circle_outline),
-                label: const Text('Tambah Data Usulan'),
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => const AddFormPage()),
-                  );
-                },
-              ),
-              const SizedBox(height: 20),
-              ElevatedButton.icon(
-                icon: const Icon(Icons.search),
-                label: const Text('Cek Data Usulan'),
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => const SearchPage()),
-                  );
-                },
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 class SearchPage extends StatefulWidget {
   const SearchPage({super.key});
-
   @override
   State<SearchPage> createState() => _SearchPageState();
 }
@@ -332,7 +716,6 @@ class SearchResultView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Daftar header yang ingin ditampilkan dan urutannya
     const displayOrder = [
       "NO",
       "DISTRICT",
@@ -384,10 +767,8 @@ class SearchResultView extends StatelessWidget {
   }
 }
 
-// --- Form Page (using Stepper) ---
 class AddFormPage extends StatefulWidget {
   const AddFormPage({super.key});
-
   @override
   State<AddFormPage> createState() => _AddFormPageState();
 }
@@ -395,13 +776,9 @@ class AddFormPage extends StatefulWidget {
 class _AddFormPageState extends State<AddFormPage> {
   int _currentStep = 0;
   final _formKeys = List.generate(4, (_) => GlobalKey<FormState>());
-
-  // Form Data
   final Map<String, dynamic> _formData = {};
   final _nomorTiketController = TextEditingController();
   final _uraianPekerjaanController = TextEditingController();
-
-  // Options (sama seperti di kode Python)
   final stoOptions = [
     "LMG",
     "SDD",
@@ -463,17 +840,14 @@ class _AddFormPageState extends State<AddFormPage> {
 
   Future<void> _submitForm() async {
     setState(() => _isLoading = true);
-
     try {
       final response = await http.post(
         Uri.parse(googleAppScriptUrl),
         headers: {'Content-Type': 'application/json'},
         body: json.encode(_formData),
       );
-
       String message = 'Terjadi kesalahan.';
       Color color = Colors.red;
-
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         message = data['message'] ?? 'Status tidak diketahui.';
@@ -494,7 +868,6 @@ class _AddFormPageState extends State<AddFormPage> {
         );
       }
     }
-
     setState(() => _isLoading = false);
   }
 
@@ -511,7 +884,6 @@ class _AddFormPageState extends State<AddFormPage> {
                 if (isLastStep) {
                   _submitForm();
                 } else {
-                  // Validasi form sebelum lanjut
                   if (_formKeys[_currentStep].currentState!.validate()) {
                     setState(() => _currentStep += 1);
                   }
