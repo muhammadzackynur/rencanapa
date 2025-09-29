@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
 import 'dart:convert';
+import 'dart:ui'; // Diperlukan untuk PathMetric
 import 'package:http/http.dart' as http;
 import 'package:phosphor_flutter/phosphor_flutter.dart';
-import 'package:fl_chart/fl_chart.dart'; // Pastikan fl_chart diimpor
+import 'package:fl_chart/fl_chart.dart';
 
 // --- KONFIGURASI ---
-// !!! GANTI DENGAN URL BARU DARI LANGKAH 2 !!!
 const String googleAppScriptUrl =
-    "https://script.google.com/macros/s/AKfycbxSm8xxBjdtrHYle_ix7t5ASiRZAIXi4UxCVy1w__Qa0bIIj_tFrAoGYzYi5nTtPXNoNQ/exec";
+    "https://script.google.com/macros/s/AKfycbwYm7P6PcN3SphqCGn6AMFSEvMdHQDfehSLKSgRRyPEEc87rn6Ygu8ue3BIQQjlVJktWg/exec";
 
 final GlobalKey<_MainPageState> mainPageKey = GlobalKey<_MainPageState>();
 
@@ -41,10 +41,19 @@ class MainPage extends StatefulWidget {
 
 class _MainPageState extends State<MainPage> {
   int _selectedIndex = 0;
-  final List<Widget> _pages = const [HomePage(), SearchPage(), AddFormPage()];
+  final AddFormPage _addFormPage = const AddFormPage();
+  late final List<Widget> _pages;
+
+  @override
+  void initState() {
+    super.initState();
+    _pages = [const HomePage(), const SearchPage(), _addFormPage];
+  }
 
   void changePage(int index) {
-    if (mounted) setState(() => _selectedIndex = index);
+    if (mounted) {
+      setState(() => _selectedIndex = index);
+    }
   }
 
   void _onItemTapped(int index) {
@@ -84,7 +93,6 @@ class HomePage extends StatelessWidget {
   const HomePage({super.key});
   @override
   Widget build(BuildContext context) {
-    // TAMPILAN ASLI ANDA DIKEMBALIKAN SEPENUHNYA
     return Scaffold(
       body: Container(
         width: double.infinity,
@@ -172,50 +180,42 @@ class HomePage extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Expanded(
-                        child: Container(
-                          padding: const EdgeInsets.all(20),
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(20),
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const Text(
-                                'Account Suplant',
-                                style: TextStyle(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.bold,
-                                  color: Color(0xFF1B1D28),
+                        child: GestureDetector(
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => const AllDataPage(),
+                              ),
+                            );
+                          },
+                          child: Container(
+                            padding: const EdgeInsets.all(20),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            child: const Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Semua Data',
+                                  style: TextStyle(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.bold,
+                                    color: Color(0xFF1B1D28),
+                                  ),
                                 ),
-                              ),
-                              const SizedBox(height: 5),
-                              Row(
-                                children: [
-                                  const Text(
-                                    '278%',
-                                    style: TextStyle(
-                                      fontSize: 24,
-                                      fontWeight: FontWeight.bold,
-                                      color: Color(0xFF1B1D28),
-                                    ),
+                                SizedBox(height: 5),
+                                Text(
+                                  'Lihat & Kelola',
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    color: Colors.grey,
                                   ),
-                                  const SizedBox(width: 10),
-                                  Container(
-                                    padding: const EdgeInsets.all(5),
-                                    decoration: const BoxDecoration(
-                                      shape: BoxShape.circle,
-                                      color: Color(0x3327AE60),
-                                    ),
-                                    child: Icon(
-                                      PhosphorIcons.arrowUp(),
-                                      size: 16,
-                                      color: const Color(0xFF27AE60),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ],
+                                ),
+                              ],
+                            ),
                           ),
                         ),
                       ),
@@ -276,7 +276,7 @@ class HomePage extends StatelessWidget {
                   ),
                   const SizedBox(height: 30),
                   const Text(
-                    'Recent Activities',
+                    'Actions',
                     style: TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
@@ -285,7 +285,24 @@ class HomePage extends StatelessWidget {
                   ),
                   const SizedBox(height: 15),
                   QuickActionCard(
-                    icon: PhosphorIcons.lightning(PhosphorIconsStyle.fill),
+                    icon: PhosphorIcons.clockCounterClockwise(
+                      PhosphorIconsStyle.fill,
+                    ),
+                    title: 'Recent Activities',
+                    subtitle: 'Lihat data usulan terakhir',
+                    iconBgColor: const Color(0xFF56CCF2),
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const RecentActivitiesPage(),
+                        ),
+                      );
+                    },
+                  ),
+                  const SizedBox(height: 15),
+                  QuickActionCard(
+                    icon: PhosphorIcons.plusCircle(PhosphorIconsStyle.fill),
                     title: 'Quick Action',
                     subtitle: 'Tambah Data Usulan',
                     iconBgColor: const Color(0xFF00BFA5),
@@ -301,6 +318,196 @@ class HomePage extends StatelessWidget {
   }
 }
 
+class RecentActivitiesPage extends StatefulWidget {
+  const RecentActivitiesPage({super.key});
+
+  @override
+  State<RecentActivitiesPage> createState() => _RecentActivitiesPageState();
+}
+
+class _RecentActivitiesPageState extends State<RecentActivitiesPage> {
+  bool _isLoading = true;
+  List<dynamic> _activities = [];
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchRecentActivities();
+  }
+
+  Future<void> _fetchRecentActivities() async {
+    try {
+      final response = await http
+          .get(Uri.parse(googleAppScriptUrl))
+          .timeout(const Duration(seconds: 30));
+      if (response.statusCode == 200) {
+        final result = json.decode(response.body);
+        if (result['status'] == 'success') {
+          setState(() {
+            _activities = result['data'];
+            _isLoading = false;
+          });
+        } else {
+          throw Exception(result['message']);
+        }
+      } else {
+        throw Exception('Gagal memuat data dari server');
+      }
+    } catch (e) {
+      setState(() {
+        _error = e.toString();
+        _isLoading = false;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Aktivitas Terakhir')),
+      body: _buildBody(),
+    );
+  }
+
+  Widget _buildBody() {
+    if (_isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    if (_error != null) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Text('Terjadi error: $_error'),
+        ),
+      );
+    }
+    if (_activities.isEmpty) {
+      return const Center(child: Text('Tidak ada data terbaru.'));
+    }
+    return ListView.builder(
+      padding: const EdgeInsets.all(8.0),
+      itemCount: _activities.length,
+      itemBuilder: (context, index) {
+        final activity = _activities[index];
+        final no = activity['NO']?.toString() ?? '-';
+        final sto = activity['STO']?.toString() ?? 'N/A';
+        final uraian =
+            activity['URAIAN PEKERJAAN']?.toString() ?? 'Tidak ada uraian';
+
+        return Card(
+          elevation: 2,
+          margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
+          child: ListTile(
+            leading: CircleAvatar(child: Text(no)),
+            title: Text(
+              "STO: $sto",
+              style: const TextStyle(fontWeight: FontWeight.bold),
+            ),
+            subtitle: Text(uraian),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class AllDataPage extends StatefulWidget {
+  const AllDataPage({super.key});
+
+  @override
+  State<AllDataPage> createState() => _AllDataPageState();
+}
+
+class _AllDataPageState extends State<AllDataPage> {
+  bool _isLoading = true;
+  List<dynamic> _allData = [];
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchAllData();
+  }
+
+  Future<void> _fetchAllData() async {
+    try {
+      final uri = Uri.parse("$googleAppScriptUrl?action=getAll");
+      final response = await http.get(uri).timeout(const Duration(seconds: 60));
+      if (response.statusCode == 200) {
+        final result = json.decode(response.body);
+        if (result['status'] == 'success') {
+          setState(() {
+            _allData = result['data'];
+            _isLoading = false;
+          });
+        } else {
+          throw Exception(result['message']);
+        }
+      } else {
+        throw Exception('Gagal memuat data dari server');
+      }
+    } catch (e) {
+      setState(() {
+        _error = e.toString();
+        _isLoading = false;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Semua Data Usulan')),
+      body: _buildBody(),
+    );
+  }
+
+  Widget _buildBody() {
+    if (_isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    if (_error != null) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Text('Terjadi error: $_error'),
+        ),
+      );
+    }
+    if (_allData.isEmpty) {
+      return const Center(child: Text('Tidak ada data.'));
+    }
+    return ListView.builder(
+      padding: const EdgeInsets.all(8.0),
+      itemCount: _allData.length,
+      itemBuilder: (context, index) {
+        final item = _allData[index];
+        final no = item['NO']?.toString() ?? '-';
+        final sto = item['STO']?.toString() ?? 'N/A';
+        final uraian =
+            item['URAIAN PEKERJAAN']?.toString() ?? 'Tidak ada uraian';
+
+        return Card(
+          elevation: 2,
+          margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
+          child: ListTile(
+            leading: CircleAvatar(child: Text(no)),
+            title: Text(
+              "STO: $sto",
+              style: const TextStyle(fontWeight: FontWeight.bold),
+            ),
+            subtitle: Text(uraian),
+          ),
+        );
+      },
+    );
+  }
+}
+
+// =========================================================================
+// WIDGET YANG HILANG (DIKEMBALIKAN)
+// =========================================================================
 class StatCard extends StatelessWidget {
   final String title, value;
   final IconData icon;
@@ -426,6 +633,7 @@ class QuickActionCard extends StatelessWidget {
     );
   }
 }
+// =========================================================================
 
 class SearchPage extends StatefulWidget {
   const SearchPage({super.key});
@@ -434,12 +642,95 @@ class SearchPage extends StatefulWidget {
 }
 
 class _SearchPageState extends State<SearchPage> {
-  // Kode SearchPage tidak diubah
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(title: const Text('Cek Data')),
     body: const Center(child: Text('Halaman Pencarian')),
   );
+}
+
+class SuccessCheckmarkAnimation extends StatefulWidget {
+  const SuccessCheckmarkAnimation({super.key, this.size = 150.0});
+  final double size;
+
+  @override
+  State<SuccessCheckmarkAnimation> createState() =>
+      _SuccessCheckmarkAnimationState();
+}
+
+class _SuccessCheckmarkAnimationState extends State<SuccessCheckmarkAnimation>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<double> _animation;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 800),
+    );
+    _animation = Tween<double>(
+      begin: 0,
+      end: 1,
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut));
+    _controller.forward();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: widget.size,
+      height: widget.size,
+      child: AnimatedBuilder(
+        animation: _animation,
+        builder: (context, child) {
+          return CustomPaint(
+            painter: CheckmarkPainter(progress: _animation.value),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class CheckmarkPainter extends CustomPainter {
+  final double progress;
+
+  CheckmarkPainter({required this.progress});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final Paint paint = Paint()
+      ..color = Colors.green
+      ..strokeWidth = 10.0
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round;
+
+    final Path path = Path();
+    path.moveTo(size.width * 0.2, size.height * 0.5);
+    path.lineTo(size.width * 0.45, size.height * 0.7);
+    path.lineTo(size.width * 0.8, size.height * 0.3);
+
+    for (PathMetric pathMetric in path.computeMetrics()) {
+      final Path extractPath = pathMetric.extractPath(
+        0.0,
+        pathMetric.length * progress,
+      );
+      canvas.drawPath(extractPath, paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) {
+    return true;
+  }
 }
 
 class AddFormPage extends StatefulWidget {
@@ -510,11 +801,56 @@ class _AddFormPageState extends State<AddFormPage> {
   ];
   bool _isLoading = false;
 
+  void _showSuccessDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return Dialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Container(
+            width: 200,
+            padding: const EdgeInsets.all(20.0),
+            child: const Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                SuccessCheckmarkAnimation(size: 80.0),
+                SizedBox(height: 16),
+                Text(
+                  'Data Sudah Ditambah!',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  textAlign: TextAlign.center,
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+
+    Future.delayed(const Duration(seconds: 3), () {
+      if (mounted) {
+        Navigator.of(context, rootNavigator: true).pop();
+        mainPageKey.currentState?.changePage(0);
+
+        _formData.clear();
+        for (var key in _formKeys) {
+          key.currentState?.reset();
+        }
+        setState(() {
+          _currentStep = 0;
+        });
+      }
+    });
+  }
+
   Future<void> _submitForm() async {
-    bool allFormsValid = true;
-    for (var key in _formKeys) {
-      if (key.currentState?.validate() == false) allFormsValid = false;
-    }
+    bool allFormsValid = _formKeys.every(
+      (key) => key.currentState?.validate() ?? false,
+    );
+
     if (!allFormsValid) {
       for (int i = 0; i < _formKeys.length; i++) {
         if (_formKeys[i].currentState?.validate() == false) {
@@ -526,6 +862,7 @@ class _AddFormPageState extends State<AddFormPage> {
     }
 
     setState(() => _isLoading = true);
+
     try {
       final response = await http
           .post(
@@ -537,37 +874,44 @@ class _AddFormPageState extends State<AddFormPage> {
 
       if (!mounted) return;
 
-      String message;
-      Color color;
-
       if (response.statusCode == 200 || response.statusCode == 302) {
-        final data = json.decode(response.body);
-        message = data['message'] ?? 'Status tidak diketahui.';
-        color = data['status'] == 'success' ? Colors.green : Colors.red;
-
-        if (data['status'] == 'success') {
-          mainPageKey.currentState?.changePage(0);
+        try {
+          final data = json.decode(response.body);
+          if (data['status'] == 'success') {
+            _showSuccessDialog();
+          } else {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(data['message'] ?? 'Terjadi error di server'),
+                backgroundColor: Colors.red,
+              ),
+            );
+          }
+        } on FormatException {
+          _showSuccessDialog();
         }
       } else {
-        message = 'Terjadi kesalahan server. Kode: ${response.statusCode}';
-        color = Colors.red;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Gagal menghubungi server. Kode: ${response.statusCode}',
+            ),
+            backgroundColor: Colors.red,
+          ),
+        );
       }
-
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(message), backgroundColor: color));
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Gagal terhubung: $e'),
+          content: Text('Terjadi masalah koneksi: $e'),
           backgroundColor: Colors.red,
         ),
       );
-    }
-
-    if (mounted) {
-      setState(() => _isLoading = false);
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
   }
 
