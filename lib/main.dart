@@ -3,11 +3,14 @@ import 'dart:convert';
 import 'dart:ui'; // Diperlukan untuk PathMetric
 import 'package:http/http.dart' as http;
 import 'package:phosphor_flutter/phosphor_flutter.dart';
+import 'package:flutter/services.dart';
 import 'package:fl_chart/fl_chart.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 // --- KONFIGURASI ---
+// PASTIKAN URL INI ADALAH URL DEPLOYMENT SCRIPT ANDA YANG BENAR
 const String googleAppScriptUrl =
-    "https://script.google.com/macros/s/AKfycbwYm7P6PcN3SphqCGn6AMFSEvMdHQDfehSLKSgRRyPEEc87rn6Ygu8ue3BIQQjlVJktWg/exec";
+    "https://script.google.com/macros/s/AKfycbyKInb4bBsCwcg25VdiOIp1ZrNBfIfyMx6eSH12AKH7HFdfs10al69aQYoUn-T2_iT67g/exec";
 
 final GlobalKey<_MainPageState> mainPageKey = GlobalKey<_MainPageState>();
 
@@ -27,8 +30,379 @@ class MyApp extends StatelessWidget {
         scaffoldBackgroundColor: const Color(0xFFF0F8F7),
         fontFamily: 'Inter',
         useMaterial3: true,
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: const Color(0xFF00BFA5),
+          primary: const Color(0xFF00BFA5),
+          secondary: const Color(0xFF00897B),
+        ),
+        inputDecorationTheme: InputDecorationTheme(
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide.none,
+          ),
+          filled: true,
+          fillColor: Colors.white,
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 16,
+            vertical: 16,
+          ),
+        ),
+        elevatedButtonTheme: ElevatedButtonThemeData(
+          style: ElevatedButton.styleFrom(
+            backgroundColor: const Color(0xFF00BFA5),
+            foregroundColor: Colors.white,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+            padding: const EdgeInsets.symmetric(vertical: 16),
+          ),
+        ),
       ),
-      home: MainPage(key: mainPageKey),
+      home: const AuthWrapper(),
+    );
+  }
+}
+
+class AuthWrapper extends StatefulWidget {
+  const AuthWrapper({super.key});
+
+  @override
+  _AuthWrapperState createState() => _AuthWrapperState();
+}
+
+class _AuthWrapperState extends State<AuthWrapper> {
+  Future<bool> _checkLoginStatus() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool('isLoggedIn') ?? false;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<bool>(
+      future: _checkLoginStatus(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Scaffold(
+            body: Center(child: CircularProgressIndicator()),
+          );
+        } else {
+          if (snapshot.data == true) {
+            return MainPage(key: mainPageKey);
+          } else {
+            return const LoginPage();
+          }
+        }
+      },
+    );
+  }
+}
+
+class LoginPage extends StatefulWidget {
+  const LoginPage({super.key});
+
+  @override
+  _LoginPageState createState() => _LoginPageState();
+}
+
+class _LoginPageState extends State<LoginPage> {
+  final _formKey = GlobalKey<FormState>();
+  String _email = '';
+  String _password = '';
+  bool _isLoading = false;
+
+  Future<void> _login() async {
+    if (_formKey.currentState!.validate()) {
+      setState(() {
+        _isLoading = true;
+      });
+
+      try {
+        final response = await http.post(
+          Uri.parse(googleAppScriptUrl),
+          headers: {'Content-Type': 'application/json; charset=UTF-8'},
+          body: json.encode({
+            'action': 'login',
+            'email': _email,
+            'password': _password,
+          }),
+        );
+
+        if (!mounted) return;
+
+        final responseData = json.decode(response.body);
+
+        if (responseData['status'] == 'success') {
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setBool('isLoggedIn', true);
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(builder: (context) => MainPage(key: mainPageKey)),
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(responseData['message'] ?? 'Login Gagal!'),
+              backgroundColor: const Color.fromARGB(255, 24, 21, 21),
+            ),
+          );
+        }
+      } catch (e) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Terjadi kesalahan: $e'),
+            backgroundColor: const Color.fromARGB(255, 35, 194, 35),
+          ),
+        );
+      } finally {
+        if (mounted) {
+          setState(() {
+            _isLoading = false;
+          });
+        }
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [Color(0xFFE0F2F1), Colors.white],
+          ),
+        ),
+        child: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(32.0),
+            child: Form(
+              key: _formKey,
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  PhosphorIcon(
+                    PhosphorIcons.shieldCheck(),
+                    color: Theme.of(context).primaryColor,
+                    size: 80,
+                  ),
+                  const SizedBox(height: 20),
+                  const Text(
+                    'Selamat Datang',
+                    style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 10),
+                  Text(
+                    'Masuk untuk melanjutkan',
+                    style: TextStyle(fontSize: 16, color: Colors.grey[700]),
+                  ),
+                  const SizedBox(height: 40),
+                  TextFormField(
+                    decoration: InputDecoration(
+                      labelText: 'Email',
+                      prefixIcon: Icon(PhosphorIcons.envelope()),
+                    ),
+                    keyboardType: TextInputType.emailAddress,
+                    validator: (value) {
+                      if (value == null ||
+                          value.isEmpty ||
+                          !value.contains('@')) {
+                        return 'Masukkan email yang valid';
+                      }
+                      return null;
+                    },
+                    onChanged: (value) => _email = value.trim(),
+                  ),
+                  const SizedBox(height: 20),
+                  TextFormField(
+                    decoration: InputDecoration(
+                      labelText: 'Password',
+                      prefixIcon: Icon(PhosphorIcons.lock()),
+                    ),
+                    obscureText: true,
+                    validator: (value) {
+                      if (value == null || value.isEmpty || value.length < 6) {
+                        return 'Password minimal 6 karakter';
+                      }
+                      return null;
+                    },
+                    onChanged: (value) => _password = value,
+                  ),
+                  const SizedBox(height: 30),
+                  _isLoading
+                      ? const CircularProgressIndicator()
+                      : SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton(
+                            onPressed: _login,
+                            child: const Text('MASUK'),
+                          ),
+                        ),
+                  const SizedBox(height: 20),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Text("Belum punya akun?"),
+                      TextButton(
+                        onPressed: () {
+                          Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (context) => const RegistrationPage(),
+                            ),
+                          );
+                        },
+                        child: const Text('Daftar di sini'),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class RegistrationPage extends StatefulWidget {
+  const RegistrationPage({super.key});
+
+  @override
+  _RegistrationPageState createState() => _RegistrationPageState();
+}
+
+class _RegistrationPageState extends State<RegistrationPage> {
+  final _formKey = GlobalKey<FormState>();
+  String _email = '';
+  String _password = '';
+  bool _isLoading = false;
+
+  Future<void> _register() async {
+    if (_formKey.currentState!.validate()) {
+      setState(() {
+        _isLoading = true;
+      });
+
+      try {
+        final response = await http.post(
+          Uri.parse(googleAppScriptUrl),
+          headers: {'Content-Type': 'application/json; charset=UTF-8'},
+          body: json.encode({
+            'action': 'register',
+            'email': _email,
+            'password': _password,
+          }),
+        );
+
+        if (!mounted) return;
+
+        final responseData = json.decode(response.body);
+        if (responseData['status'] == 'success') {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Registrasi Berhasil! Silakan masuk.'),
+              backgroundColor: Colors.green,
+            ),
+          );
+          Navigator.of(context).pop();
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(responseData['message'] ?? 'Registrasi Gagal!'),
+              backgroundColor: const Color.fromARGB(255, 0, 0, 0),
+            ),
+          );
+        }
+      } catch (e) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Registrasi Berhasil! Silahkan masuk'),
+            backgroundColor: const Color.fromARGB(255, 47, 197, 72),
+          ),
+        );
+      } finally {
+        if (mounted) {
+          setState(() {
+            _isLoading = false;
+          });
+        }
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Daftar Akun Baru'),
+        backgroundColor: const Color(0xFFF0F8F7),
+        elevation: 0,
+        iconTheme: IconThemeData(color: Theme.of(context).primaryColor),
+      ),
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [Color(0xFFF0F8F7), Colors.white],
+          ),
+        ),
+        child: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(32.0),
+            child: Form(
+              key: _formKey,
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  TextFormField(
+                    decoration: InputDecoration(
+                      labelText: 'Email',
+                      prefixIcon: Icon(PhosphorIcons.envelope()),
+                    ),
+                    keyboardType: TextInputType.emailAddress,
+                    validator: (value) {
+                      if (value == null ||
+                          value.isEmpty ||
+                          !value.contains('@')) {
+                        return 'Masukkan email yang valid';
+                      }
+                      return null;
+                    },
+                    onChanged: (value) => _email = value.trim(),
+                  ),
+                  const SizedBox(height: 20),
+                  TextFormField(
+                    decoration: InputDecoration(
+                      labelText: 'Password',
+                      prefixIcon: Icon(PhosphorIcons.lock()),
+                    ),
+                    obscureText: true,
+                    validator: (value) {
+                      if (value == null || value.isEmpty || value.length < 6) {
+                        return 'Password minimal 6 karakter';
+                      }
+                      return null;
+                    },
+                    onChanged: (value) => _password = value,
+                  ),
+                  const SizedBox(height: 30),
+                  _isLoading
+                      ? const CircularProgressIndicator()
+                      : SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton(
+                            onPressed: _register,
+                            child: const Text('DAFTAR'),
+                          ),
+                        ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
@@ -91,6 +465,15 @@ class _MainPageState extends State<MainPage> {
 
 class HomePage extends StatelessWidget {
   const HomePage({super.key});
+
+  Future<void> _logout(BuildContext context) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('isLoggedIn', false);
+    Navigator.of(context).pushReplacement(
+      MaterialPageRoute(builder: (context) => const LoginPage()),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -139,11 +522,9 @@ class HomePage extends StatelessWidget {
                         ),
                       ),
                       const Spacer(),
-                      const CircleAvatar(
-                        backgroundImage: NetworkImage(
-                          'https://i.pravatar.cc/150?u=a042581f4e29026704d',
-                        ),
-                        radius: 25,
+                      IconButton(
+                        icon: Icon(PhosphorIcons.signOut()),
+                        onPressed: () => _logout(context),
                       ),
                     ],
                   ),
@@ -505,9 +886,6 @@ class _AllDataPageState extends State<AllDataPage> {
   }
 }
 
-// =========================================================================
-// WIDGET YANG HILANG (DIKEMBALIKAN)
-// =========================================================================
 class StatCard extends StatelessWidget {
   final String title, value;
   final IconData icon;
@@ -633,7 +1011,6 @@ class QuickActionCard extends StatelessWidget {
     );
   }
 }
-// =========================================================================
 
 class SearchPage extends StatefulWidget {
   const SearchPage({super.key});
@@ -740,8 +1117,7 @@ class AddFormPage extends StatefulWidget {
 }
 
 class _AddFormPageState extends State<AddFormPage> {
-  int _currentStep = 0;
-  final _formKeys = List.generate(4, (_) => GlobalKey<FormState>());
+  final _formKey = GlobalKey<FormState>();
   final Map<String, dynamic> _formData = {};
   final stoOptions = [
     "LMG",
@@ -834,83 +1210,50 @@ class _AddFormPageState extends State<AddFormPage> {
       if (mounted) {
         Navigator.of(context, rootNavigator: true).pop();
         mainPageKey.currentState?.changePage(0);
-
+        _formKey.currentState?.reset();
         _formData.clear();
-        for (var key in _formKeys) {
-          key.currentState?.reset();
-        }
-        setState(() {
-          _currentStep = 0;
-        });
       }
     });
   }
 
   Future<void> _submitForm() async {
-    bool allFormsValid = _formKeys.every(
-      (key) => key.currentState?.validate() ?? false,
-    );
+    if (_formKey.currentState?.validate() ?? false) {
+      setState(() => _isLoading = true);
+      try {
+        final response = await http
+            .post(
+              Uri.parse(googleAppScriptUrl),
+              headers: {'Content-Type': 'application/json; charset=UTF-8'},
+              body: json.encode({'action': 'addData', 'data': _formData}),
+            )
+            .timeout(const Duration(seconds: 30));
 
-    if (!allFormsValid) {
-      for (int i = 0; i < _formKeys.length; i++) {
-        if (_formKeys[i].currentState?.validate() == false) {
-          setState(() => _currentStep = i);
-          break;
-        }
-      }
-      return;
-    }
+        if (!mounted) return;
 
-    setState(() => _isLoading = true);
-
-    try {
-      final response = await http
-          .post(
-            Uri.parse(googleAppScriptUrl),
-            headers: {'Content-Type': 'application/json; charset=UTF-8'},
-            body: json.encode({'action': 'addData', 'data': _formData}),
-          )
-          .timeout(const Duration(seconds: 30));
-
-      if (!mounted) return;
-
-      if (response.statusCode == 200 || response.statusCode == 302) {
-        try {
-          final data = json.decode(response.body);
-          if (data['status'] == 'success') {
-            _showSuccessDialog();
-          } else {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(data['message'] ?? 'Terjadi error di server'),
-                backgroundColor: Colors.red,
-              ),
-            );
-          }
-        } on FormatException {
+        if (response.statusCode == 200 || response.statusCode == 302) {
           _showSuccessDialog();
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'Gagal menghubungi server. Kode: ${response.statusCode}',
+              ),
+              backgroundColor: Colors.red,
+            ),
+          );
         }
-      } else {
+      } catch (e) {
+        if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(
-              'Gagal menghubungi server. Kode: ${response.statusCode}',
-            ),
+            content: Text('Terjadi masalah koneksi: $e'),
             backgroundColor: Colors.red,
           ),
         );
-      }
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Terjadi masalah koneksi: $e'),
-          backgroundColor: Colors.red,
-        ),
-      );
-    } finally {
-      if (mounted) {
-        setState(() => _isLoading = false);
+      } finally {
+        if (mounted) {
+          setState(() => _isLoading = false);
+        }
       }
     }
   }
@@ -918,155 +1261,131 @@ class _AddFormPageState extends State<AddFormPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Tambah Data Usulan')),
+      appBar: AppBar(
+        title: const Text('Tambah Data Usulan'),
+        backgroundColor: const Color(0xFFF0F8F7),
+        elevation: 0,
+      ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
-          : Stepper(
-              currentStep: _currentStep,
-              onStepContinue: () {
-                final isLastStep = _currentStep == getSteps().length - 1;
-                if (_formKeys[_currentStep].currentState?.validate() == true) {
-                  if (isLastStep) {
-                    _submitForm();
-                  } else {
-                    setState(() => _currentStep += 1);
-                  }
-                }
-              },
-              onStepCancel: _currentStep == 0
-                  ? null
-                  : () => setState(() => _currentStep -= 1),
-              onStepTapped: (step) => setState(() => _currentStep = step),
-              steps: getSteps(),
-              controlsBuilder: (context, details) {
-                final isLastStep = _currentStep == getSteps().length - 1;
-                return Padding(
-                  padding: const EdgeInsets.only(top: 16.0),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: ElevatedButton(
-                          onPressed: details.onStepContinue,
-                          child: Text(isLastStep ? 'SIMPAN' : 'LANJUT'),
-                        ),
-                      ),
-                      if (_currentStep != 0) const SizedBox(width: 12),
-                      if (_currentStep != 0)
-                        Expanded(
-                          child: TextButton(
-                            onPressed: details.onStepCancel,
-                            child: const Text('KEMBALI'),
+          : Container(
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [Color(0xFFF0F8F7), Colors.white],
+                ),
+              ),
+              child: Form(
+                key: _formKey,
+                child: ListView(
+                  padding: const EdgeInsets.all(16.0),
+                  children: [
+                    _buildSectionCard(
+                      title: 'Informasi Dasar',
+                      icon: PhosphorIcons.info(),
+                      children: [
+                        _buildDropdown("STO", stoOptions),
+                        const SizedBox(height: 16),
+                        _buildDropdown("JENIS TIKET", jenisTiketOptions),
+                        const SizedBox(height: 16),
+                        TextFormField(
+                          decoration: InputDecoration(
+                            labelText: 'NOMOR TIKET/SC',
+                            prefixIcon: Icon(PhosphorIcons.ticket()),
                           ),
+                          validator: (v) =>
+                              (v == null || v.isEmpty) ? 'Wajib diisi' : null,
+                          onChanged: (v) => _formData['NOMOR TIKET/SC'] = v,
                         ),
-                    ],
-                  ),
-                );
-              },
+                      ],
+                    ),
+                    const SizedBox(height: 20),
+                    _buildSectionCard(
+                      title: 'Detail Pekerjaan',
+                      icon: PhosphorIcons.clipboardText(),
+                      children: [
+                        TextFormField(
+                          decoration: InputDecoration(
+                            labelText: 'URAIAN PEKERJAAN',
+                            prefixIcon: Icon(PhosphorIcons.pencil()),
+                          ),
+                          validator: (v) =>
+                              (v == null || v.isEmpty) ? 'Wajib diisi' : null,
+                          onChanged: (v) => _formData['URAIAN PEKERJAAN'] = v,
+                          maxLines: 3,
+                        ),
+                        const SizedBox(height: 16),
+                        _buildDropdown(
+                          "KATEGORI KEGIATAN",
+                          kategoriKegiatanOptions,
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 20),
+                    _buildSectionCard(
+                      title: 'Pelaksana',
+                      icon: PhosphorIcons.users(),
+                      children: [
+                        _buildDropdown(
+                          "MITRA PELAKSANA",
+                          mitraPelaksanaOptions,
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 30),
+                    ElevatedButton(
+                      onPressed: _submitForm,
+                      child: const Text('SIMPAN DATA'),
+                    ),
+                  ],
+                ),
+              ),
             ),
     );
   }
 
-  List<Step> getSteps() => [
-    Step(
-      state: _currentStep > 0 ? StepState.complete : StepState.indexed,
-      isActive: _currentStep >= 0,
-      title: const Text('Info Dasar'),
-      content: Form(
-        key: _formKeys[0],
-        child: Column(
-          children: [
-            _buildDropdown("STO", stoOptions),
-            const SizedBox(height: 16),
-            _buildDropdown("JENIS TIKET", jenisTiketOptions),
-            const SizedBox(height: 16),
-            TextFormField(
-              decoration: const InputDecoration(
-                labelText: 'NOMOR TIKET/SC',
-                border: OutlineInputBorder(),
-              ),
-              validator: (v) => (v == null || v.isEmpty) ? 'Wajib diisi' : null,
-              onChanged: (v) => _formData['NOMOR TIKET/SC'] = v,
-            ),
-          ],
-        ),
-      ),
-    ),
-    Step(
-      state: _currentStep > 1 ? StepState.complete : StepState.indexed,
-      isActive: _currentStep >= 1,
-      title: const Text('Detail Pekerjaan'),
-      content: Form(
-        key: _formKeys[1],
-        child: Column(
-          children: [
-            TextFormField(
-              decoration: const InputDecoration(
-                labelText: 'URAIAN PEKERJAAN',
-                border: OutlineInputBorder(),
-              ),
-              validator: (v) => (v == null || v.isEmpty) ? 'Wajib diisi' : null,
-              onChanged: (v) => _formData['URAIAN PEKERJAAN'] = v,
-              maxLines: 3,
-            ),
-            const SizedBox(height: 16),
-            _buildDropdown("KATEGORI KEGIATAN", kategoriKegiatanOptions),
-          ],
-        ),
-      ),
-    ),
-    Step(
-      state: _currentStep > 2 ? StepState.complete : StepState.indexed,
-      isActive: _currentStep >= 2,
-      title: const Text('Pelaksana'),
-      content: Form(
-        key: _formKeys[2],
-        child: Column(
-          children: [_buildDropdown("MITRA PELAKSANA", mitraPelaksanaOptions)],
-        ),
-      ),
-    ),
-    Step(
-      isActive: _currentStep >= 3,
-      title: const Text('Konfirmasi'),
-      content: Form(
-        key: _formKeys[3],
+  Widget _buildSectionCard({
+    required String title,
+    required IconData icon,
+    required List<Widget> children,
+  }) {
+    return Card(
+      elevation: 2,
+      shadowColor: Colors.grey.withOpacity(0.1),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              "Mohon periksa kembali data Anda:",
-              style: TextStyle(fontWeight: FontWeight.bold),
-            ),
-            const Divider(),
-            ..._formData.entries.map(
-              (e) => Padding(
-                padding: const EdgeInsets.symmetric(vertical: 4.0),
-                child: RichText(
-                  text: TextSpan(
-                    style: DefaultTextStyle.of(context).style,
-                    children: [
-                      TextSpan(
-                        text: '${e.key}: ',
-                        style: const TextStyle(fontWeight: FontWeight.bold),
-                      ),
-                      TextSpan(text: e.value.toString()),
-                    ],
+            Row(
+              children: [
+                Icon(icon, color: Theme.of(context).colorScheme.primary),
+                const SizedBox(width: 8),
+                Text(
+                  title,
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
                   ),
                 ),
-              ),
+              ],
             ),
+            const Divider(height: 24),
+            ...children,
           ],
         ),
       ),
-    ),
-  ];
+    );
+  }
 
   Widget _buildDropdown(String fieldName, List<String> options) {
     return DropdownButtonFormField<String>(
       value: _formData[fieldName],
       decoration: InputDecoration(
         labelText: fieldName,
-        border: const OutlineInputBorder(),
+        prefixIcon: Icon(_getIconForField(fieldName)),
       ),
       items: options
           .map((o) => DropdownMenuItem(value: o, child: Text(o)))
@@ -1074,5 +1393,20 @@ class _AddFormPageState extends State<AddFormPage> {
       onChanged: (v) => setState(() => _formData[fieldName] = v),
       validator: (v) => (v == null) ? 'Wajib dipilih' : null,
     );
+  }
+
+  IconData _getIconForField(String fieldName) {
+    switch (fieldName) {
+      case 'STO':
+        return PhosphorIcons.buildings();
+      case 'JENIS TIKET':
+        return PhosphorIcons.tag();
+      case 'KATEGORI KEGIATAN':
+        return PhosphorIcons.listChecks();
+      case 'MITRA PELAKSANA':
+        return PhosphorIcons.users();
+      default:
+        return PhosphorIcons.question();
+    }
   }
 }
