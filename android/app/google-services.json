@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "220576630337",
+    "project_id": "rencanapa-b0d44",
+    "storage_bucket": "rencanapa-b0d44.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:220576630337:android:d37bf5d4e9edbb976728c0",
+        "android_client_info": {
+          "package_name": "com.example.rencanapa"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBCQBjChRqzzTqlI1qqeQdQDGQh8m_mUnc"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

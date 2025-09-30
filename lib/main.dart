@@ -7,14 +7,37 @@ import 'package:flutter/services.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+// [PERUBAHAN] Import untuk Firebase
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
+
 // --- KONFIGURASI ---
-// PASTIKAN URL INI ADALAH URL DEPLOYMENT SCRIPT ANDA YANG BENAR
+// URL INI SEKARANG MENGARAH KE API LARAVEL ANDA
+// Pastikan backend Laravel Anda berjalan (php artisan serve --host=...)
+const String apiUrl = "http://192.168.1.49:8000/api";
+
+// URL untuk fitur lain yang masih menggunakan Google Script (bisa dimigrasi nanti)
 const String googleAppScriptUrl =
     "https://script.google.com/macros/s/AKfycbyKInb4bBsCwcg25VdiOIp1ZrNBfIfyMx6eSH12AKH7HFdfs10al69aQYoUn-T2_iT67g/exec";
 
 final GlobalKey<_MainPageState> mainPageKey = GlobalKey<_MainPageState>();
 
-void main() {
+// [FUNGSI BARU] Handler untuk notifikasi saat aplikasi di background/terminated
+@pragma('vm:entry-point')
+Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
+  await Firebase.initializeApp();
+  print("Handling a background message: ${message.messageId}");
+}
+
+void main() async {
+  // [PERUBAHAN] Jadikan async
+  // [PERUBAHAN] Inisialisasi Firebase
+  WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp();
+
+  // [PERUBAHAN] Set background handler
+  FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
+
   runApp(const MyApp());
 }
 
@@ -118,13 +141,9 @@ class _LoginPageState extends State<LoginPage> {
 
       try {
         final response = await http.post(
-          Uri.parse(googleAppScriptUrl),
+          Uri.parse("$apiUrl/login"),
           headers: {'Content-Type': 'application/json; charset=UTF-8'},
-          body: json.encode({
-            'action': 'login',
-            'email': _email,
-            'password': _password,
-          }),
+          body: json.encode({'email': _email, 'password': _password}),
         );
 
         if (!mounted) return;
@@ -141,15 +160,15 @@ class _LoginPageState extends State<LoginPage> {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(responseData['message'] ?? 'Login Gagal!'),
-              backgroundColor: const Color.fromARGB(255, 24, 21, 21),
+              backgroundColor: Colors.red,
             ),
           );
         }
       } catch (e) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Terjadi kesalahan: $e'),
-            backgroundColor: const Color.fromARGB(255, 35, 194, 35),
+            content: Text('Terjadi kesalahan koneksi: $e'),
+            backgroundColor: Colors.red,
           ),
         );
       } finally {
@@ -284,14 +303,17 @@ class _RegistrationPageState extends State<RegistrationPage> {
         _isLoading = true;
       });
 
+      // [PERUBAHAN] Dapatkan FCM Token dari perangkat
+      final fcmToken = await FirebaseMessaging.instance.getToken();
+
       try {
         final response = await http.post(
-          Uri.parse(googleAppScriptUrl),
+          Uri.parse("$apiUrl/register"),
           headers: {'Content-Type': 'application/json; charset=UTF-8'},
           body: json.encode({
-            'action': 'register',
             'email': _email,
             'password': _password,
+            'fcm_token': fcmToken, // Kirim token ke Laravel
           }),
         );
 
@@ -310,15 +332,15 @@ class _RegistrationPageState extends State<RegistrationPage> {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(responseData['message'] ?? 'Registrasi Gagal!'),
-              backgroundColor: const Color.fromARGB(255, 0, 0, 0),
+              backgroundColor: Colors.red,
             ),
           );
         }
       } catch (e) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Registrasi Berhasil! Silahkan masuk'),
-            backgroundColor: const Color.fromARGB(255, 47, 197, 72),
+            content: Text('Terjadi kesalahan koneksi: $e'),
+            backgroundColor: Colors.red,
           ),
         );
       } finally {
@@ -422,6 +444,26 @@ class _MainPageState extends State<MainPage> {
   void initState() {
     super.initState();
     _pages = [const HomePage(), const SearchPage(), _addFormPage];
+
+    // [TAMBAHAN BARU] Kode untuk mendengarkan notifikasi saat aplikasi terbuka
+    FirebaseMessaging.onMessage.listen((RemoteMessage message) {
+      print('Menerima notifikasi saat aplikasi terbuka!');
+      if (message.notification != null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              message.notification!.title ?? 'Notifikasi Baru',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+              ),
+            ),
+            behavior: SnackBarBehavior.floating,
+            backgroundColor: Colors.teal,
+          ),
+        );
+      }
+    });
   }
 
   void changePage(int index) {
@@ -462,6 +504,9 @@ class _MainPageState extends State<MainPage> {
     );
   }
 }
+
+// ... SISA KODE (HomePage, RecentActivitiesPage, dll.) TETAP SAMA ...
+// ... TIDAK PERLU DIUBAH ...
 
 class HomePage extends StatelessWidget {
   const HomePage({super.key});
@@ -720,7 +765,7 @@ class _RecentActivitiesPageState extends State<RecentActivitiesPage> {
   Future<void> _fetchRecentActivities() async {
     try {
       final response = await http
-          .get(Uri.parse(googleAppScriptUrl))
+          .get(Uri.parse("$apiUrl/proposals/recent")) // [PERUBAHAN]
           .timeout(const Duration(seconds: 30));
       if (response.statusCode == 200) {
         final result = json.decode(response.body);
@@ -771,10 +816,11 @@ class _RecentActivitiesPageState extends State<RecentActivitiesPage> {
       itemCount: _activities.length,
       itemBuilder: (context, index) {
         final activity = _activities[index];
-        final no = activity['NO']?.toString() ?? '-';
-        final sto = activity['STO']?.toString() ?? 'N/A';
+        // [PERUBAHAN] Menyesuaikan nama field dari Laravel
+        final no = activity['id']?.toString() ?? '-';
+        final sto = activity['sto']?.toString() ?? 'N/A';
         final uraian =
-            activity['URAIAN PEKERJAAN']?.toString() ?? 'Tidak ada uraian';
+            activity['uraian_pekerjaan']?.toString() ?? 'Tidak ada uraian';
 
         return Card(
           elevation: 2,
@@ -813,7 +859,7 @@ class _AllDataPageState extends State<AllDataPage> {
 
   Future<void> _fetchAllData() async {
     try {
-      final uri = Uri.parse("$googleAppScriptUrl?action=getAll");
+      final uri = Uri.parse("$apiUrl/proposals/all"); // [PERUBAHAN]
       final response = await http.get(uri).timeout(const Duration(seconds: 60));
       if (response.statusCode == 200) {
         final result = json.decode(response.body);
@@ -864,10 +910,11 @@ class _AllDataPageState extends State<AllDataPage> {
       itemCount: _allData.length,
       itemBuilder: (context, index) {
         final item = _allData[index];
-        final no = item['NO']?.toString() ?? '-';
-        final sto = item['STO']?.toString() ?? 'N/A';
+        // [PERUBAHAN] Menyesuaikan nama field dari Laravel
+        final no = item['id']?.toString() ?? '-';
+        final sto = item['sto']?.toString() ?? 'N/A';
         final uraian =
-            item['URAIAN PEKERJAAN']?.toString() ?? 'Tidak ada uraian';
+            item['uraian_pekerjaan']?.toString() ?? 'Tidak ada uraian';
 
         return Card(
           elevation: 2,
@@ -1222,22 +1269,21 @@ class _AddFormPageState extends State<AddFormPage> {
       try {
         final response = await http
             .post(
-              Uri.parse(googleAppScriptUrl),
+              Uri.parse("$apiUrl/proposals/store"), // [PERUBAHAN]
               headers: {'Content-Type': 'application/json; charset=UTF-8'},
-              body: json.encode({'action': 'addData', 'data': _formData}),
+              body: json.encode(_formData), // [PERUBAHAN]
             )
             .timeout(const Duration(seconds: 30));
 
         if (!mounted) return;
 
-        if (response.statusCode == 200 || response.statusCode == 302) {
+        final responseData = json.decode(response.body);
+        if (responseData['status'] == 'success') {
           _showSuccessDialog();
         } else {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text(
-                'Gagal menghubungi server. Kode: ${response.statusCode}',
-              ),
+              content: Text(responseData['message'] ?? 'Gagal menyimpan data.'),
               backgroundColor: Colors.red,
             ),
           );

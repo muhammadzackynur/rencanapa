@@ -1,3 +1,15 @@
+// [PERUBAHAN] Menambahkan blok buildscript untuk dependensi plugin
+buildscript {
+    repositories {
+        google()
+        mavenCentral()
+    }
+    dependencies {
+        // [PERUBAHAN] Menambahkan classpath untuk Google Services Plugin
+        classpath("com.google.gms:google-services:4.4.1")
+    }
+}
+
 allprojects {
     repositories {
         google()
