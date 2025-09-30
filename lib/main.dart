@@ -1,20 +1,18 @@
-import 'package:flutter/material.dart';
 import 'dart:convert';
-import 'dart:ui'; // Diperlukan untuk PathMetric
-import 'package:http/http.dart' as http;
-import 'package:phosphor_flutter/phosphor_flutter.dart';
-import 'package:flutter/services.dart';
-import 'package:fl_chart/fl_chart.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-
-// [PERUBAHAN] Import untuk Firebase
+import 'dart:ui';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:fl_chart/fl_chart.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:http/http.dart' as http;
+import 'package:phosphor_flutter/phosphor_flutter.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 // --- KONFIGURASI ---
 // URL INI SEKARANG MENGARAH KE API LARAVEL ANDA
 // Pastikan backend Laravel Anda berjalan (php artisan serve --host=...)
-const String apiUrl = "http://192.168.1.49:8000/api";
+const String apiUrl = "http://192.168.100.152:8000/api";
 
 // URL untuk fitur lain yang masih menggunakan Google Script (bisa dimigrasi nanti)
 const String googleAppScriptUrl =
@@ -30,12 +28,11 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
 }
 
 void main() async {
-  // [PERUBAHAN] Jadikan async
-  // [PERUBAHAN] Inisialisasi Firebase
+  // Inisialisasi Firebase
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp();
 
-  // [PERUBAHAN] Set background handler
+  // Set background handler
   FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
 
   runApp(const MyApp());
@@ -303,8 +300,9 @@ class _RegistrationPageState extends State<RegistrationPage> {
         _isLoading = true;
       });
 
-      // [PERUBAHAN] Dapatkan FCM Token dari perangkat
+      // Dapatkan FCM Token dari perangkat
       final fcmToken = await FirebaseMessaging.instance.getToken();
+      print('FCM Token: $fcmToken'); // Untuk debugging
 
       try {
         final response = await http.post(
@@ -445,7 +443,10 @@ class _MainPageState extends State<MainPage> {
     super.initState();
     _pages = [const HomePage(), const SearchPage(), _addFormPage];
 
-    // [TAMBAHAN BARU] Kode untuk mendengarkan notifikasi saat aplikasi terbuka
+    // --- PERBAIKAN: Meminta izin notifikasi ---
+    _requestNotificationPermission();
+
+    // Kode untuk mendengarkan notifikasi saat aplikasi terbuka
     FirebaseMessaging.onMessage.listen((RemoteMessage message) {
       print('Menerima notifikasi saat aplikasi terbuka!');
       if (message.notification != null) {
@@ -453,7 +454,7 @@ class _MainPageState extends State<MainPage> {
           SnackBar(
             content: Text(
               message.notification!.title ?? 'Notifikasi Baru',
-              style: TextStyle(
+              style: const TextStyle(
                 fontWeight: FontWeight.bold,
                 color: Colors.white,
               ),
@@ -464,6 +465,29 @@ class _MainPageState extends State<MainPage> {
         );
       }
     });
+  }
+
+  // --- FUNGSI BARU: Untuk meminta izin notifikasi ---
+  Future<void> _requestNotificationPermission() async {
+    FirebaseMessaging messaging = FirebaseMessaging.instance;
+    NotificationSettings settings = await messaging.requestPermission(
+      alert: true,
+      announcement: false,
+      badge: true,
+      carPlay: false,
+      criticalAlert: false,
+      provisional: false,
+      sound: true,
+    );
+
+    if (settings.authorizationStatus == AuthorizationStatus.authorized) {
+      print('Izin notifikasi diberikan');
+    } else if (settings.authorizationStatus ==
+        AuthorizationStatus.provisional) {
+      print('Izin notifikasi provisional diberikan');
+    } else {
+      print('Pengguna menolak atau belum memberikan izin notifikasi');
+    }
   }
 
   void changePage(int index) {
@@ -504,9 +528,6 @@ class _MainPageState extends State<MainPage> {
     );
   }
 }
-
-// ... SISA KODE (HomePage, RecentActivitiesPage, dll.) TETAP SAMA ...
-// ... TIDAK PERLU DIUBAH ...
 
 class HomePage extends StatelessWidget {
   const HomePage({super.key});
@@ -765,7 +786,7 @@ class _RecentActivitiesPageState extends State<RecentActivitiesPage> {
   Future<void> _fetchRecentActivities() async {
     try {
       final response = await http
-          .get(Uri.parse("$apiUrl/proposals/recent")) // [PERUBAHAN]
+          .get(Uri.parse("$apiUrl/proposals/recent"))
           .timeout(const Duration(seconds: 30));
       if (response.statusCode == 200) {
         final result = json.decode(response.body);
@@ -816,7 +837,6 @@ class _RecentActivitiesPageState extends State<RecentActivitiesPage> {
       itemCount: _activities.length,
       itemBuilder: (context, index) {
         final activity = _activities[index];
-        // [PERUBAHAN] Menyesuaikan nama field dari Laravel
         final no = activity['id']?.toString() ?? '-';
         final sto = activity['sto']?.toString() ?? 'N/A';
         final uraian =
@@ -859,7 +879,7 @@ class _AllDataPageState extends State<AllDataPage> {
 
   Future<void> _fetchAllData() async {
     try {
-      final uri = Uri.parse("$apiUrl/proposals/all"); // [PERUBAHAN]
+      final uri = Uri.parse("$apiUrl/proposals/all");
       final response = await http.get(uri).timeout(const Duration(seconds: 60));
       if (response.statusCode == 200) {
         final result = json.decode(response.body);
@@ -910,7 +930,6 @@ class _AllDataPageState extends State<AllDataPage> {
       itemCount: _allData.length,
       itemBuilder: (context, index) {
         final item = _allData[index];
-        // [PERUBAHAN] Menyesuaikan nama field dari Laravel
         final no = item['id']?.toString() ?? '-';
         final sto = item['sto']?.toString() ?? 'N/A';
         final uraian =
@@ -1269,9 +1288,9 @@ class _AddFormPageState extends State<AddFormPage> {
       try {
         final response = await http
             .post(
-              Uri.parse("$apiUrl/proposals/store"), // [PERUBAHAN]
+              Uri.parse("$apiUrl/proposals/store"),
               headers: {'Content-Type': 'application/json; charset=UTF-8'},
-              body: json.encode(_formData), // [PERUBAHAN]
+              body: json.encode(_formData),
             )
             .timeout(const Duration(seconds: 30));
 
