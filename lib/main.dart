@@ -971,10 +971,21 @@ class _AllDataPageState extends State<AllDataPage> {
   String? _selectedSTO;
   List<String> _stoOptions = [];
 
+  final TextEditingController _searchController = TextEditingController();
+
   @override
   void initState() {
     super.initState();
     _fetchAllData();
+    _searchController.addListener(() {
+      _runFilter();
+    });
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
   }
 
   Future<void> _fetchAllData() async {
@@ -986,15 +997,15 @@ class _AllDataPageState extends State<AllDataPage> {
         if (result['status'] == 'success') {
           setState(() {
             _allData = result['data'];
-            _filteredData = _allData;
             _stoOptions = _allData
                 .map((item) => item['STO']?.toString())
-                .whereType<String>() // This is the fix
+                .whereType<String>()
                 .toSet()
                 .toList();
             _stoOptions.sort();
             _isLoading = false;
           });
+          _runFilter();
         } else {
           throw Exception(result['message']);
         }
@@ -1012,12 +1023,57 @@ class _AllDataPageState extends State<AllDataPage> {
   void _filterBySTO(String? sto) {
     setState(() {
       _selectedSTO = sto;
-      if (sto == null || sto == 'Semua') {
-        _filteredData = _allData;
-      } else {
-        _filteredData = _allData.where((item) => item['STO'] == sto).toList();
-      }
     });
+    _runFilter();
+  }
+
+  void _runFilter() {
+    List<dynamic> results = _allData;
+    final query = _searchController.text.toLowerCase();
+
+    if (_selectedSTO != null && _selectedSTO != 'Semua') {
+      results = results.where((item) => item['STO'] == _selectedSTO).toList();
+    }
+
+    if (query.isNotEmpty) {
+      results = results.where((item) {
+        final tiket = item['NOMOR TIKET/SC']?.toString().toLowerCase() ?? '';
+        final uraian = item['URAIAN PEKERJAAN']?.toString().toLowerCase() ?? '';
+        final idHld = item['ID/HLD']?.toString().toLowerCase() ?? '';
+        final kategori =
+            item['KATEGORI KEGIATAN']?.toString().toLowerCase() ?? '';
+        final sto = item['STO']?.toString().toLowerCase() ?? '';
+
+        return tiket.contains(query) ||
+            uraian.contains(query) ||
+            idHld.contains(query) ||
+            kategori.contains(query) ||
+            sto.contains(query);
+      }).toList();
+    }
+
+    setState(() {
+      _filteredData = results;
+    });
+  }
+
+  // ============== FUNGSI BARU UNTUK MENDAPATKAN WARNA STATUS ==============
+  Color _getStatusColor(String? status) {
+    if (status == null) return Colors.grey;
+    switch (status.toLowerCase()) {
+      case 'belum dikerjakan':
+        return Colors.grey.shade600;
+      case 'order eksekusi':
+        return Colors.blue.shade600;
+      case 'sudah dikerjakan':
+        return Colors.green.shade600;
+      case 'cancle':
+        return Colors.red.shade600;
+      case 'waiting list':
+        return Colors.orange.shade600;
+      default:
+        return Colors.black;
+    }
   }
 
   @override
@@ -1055,11 +1111,32 @@ class _AllDataPageState extends State<AllDataPage> {
             ),
         ],
       ),
-      body: _buildBody(),
+      body: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+            child: TextField(
+              controller: _searchController,
+              decoration: InputDecoration(
+                hintText: 'Cari (No. Tiket, Uraian, Kategori, dll)',
+                prefixIcon: Icon(PhosphorIcons.magnifyingGlass()),
+                contentPadding: const EdgeInsets.symmetric(vertical: 10),
+                fillColor: Colors.white,
+                filled: true,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(20),
+                  borderSide: BorderSide.none,
+                ),
+              ),
+            ),
+          ),
+          Expanded(child: _buildGridBody()),
+        ],
+      ),
     );
   }
 
-  Widget _buildBody() {
+  Widget _buildGridBody() {
     if (_isLoading) {
       return const Center(child: CircularProgressIndicator());
     }
@@ -1072,17 +1149,27 @@ class _AllDataPageState extends State<AllDataPage> {
       );
     }
     if (_filteredData.isEmpty) {
-      return const Center(child: Text('Tidak ada data untuk filter ini.'));
+      return const Center(child: Text('Data tidak ditemukan.'));
     }
-    return ListView.builder(
-      padding: const EdgeInsets.all(8.0),
+
+    return GridView.builder(
+      padding: const EdgeInsets.all(12.0),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 2,
+        crossAxisSpacing: 12,
+        mainAxisSpacing: 12,
+        childAspectRatio: (2 / 2.8),
+      ),
       itemCount: _filteredData.length,
       itemBuilder: (context, index) {
         final item = _filteredData[index];
         final no = item['NO']?.toString() ?? '-';
         final sto = item['STO']?.toString() ?? 'N/A';
-        final uraian =
+        final String mainUraian =
             item['URAIAN PEKERJAAN']?.toString() ?? 'Tidak ada uraian';
+        final String? kategori = item['KATEGORI KEGIATAN']?.toString();
+        // [PERUBAHAN] Mengambil data status
+        final String? status = item['STATUS']?.toString();
 
         return GestureDetector(
           onTap: () {
@@ -1092,15 +1179,130 @@ class _AllDataPageState extends State<AllDataPage> {
             );
           },
           child: Card(
-            elevation: 2,
-            margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
-            child: ListTile(
-              leading: CircleAvatar(child: Text(no)),
-              title: Text(
-                "STO: $sto",
-                style: const TextStyle(fontWeight: FontWeight.bold),
-              ),
-              subtitle: Text(uraian),
+            clipBehavior:
+                Clip.antiAlias, // Penting untuk rounded corner pada Stack
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+            elevation: 3,
+            shadowColor: Colors.black.withOpacity(0.1),
+            child: Stack(
+              children: [
+                // Konten utama kartu
+                Padding(
+                  padding: const EdgeInsets.all(12.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 5,
+                            ),
+                            constraints: const BoxConstraints(minWidth: 32),
+                            decoration: BoxDecoration(
+                              color: Theme.of(
+                                context,
+                              ).primaryColor.withOpacity(0.15),
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            alignment: Alignment.center,
+                            child: Text(
+                              no,
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                color: Theme.of(context).primaryColor,
+                                fontSize: 14,
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  "STO: $sto",
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 13,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        mainUraian,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: Colors.black54,
+                        ),
+                        maxLines: 4,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const Spacer(),
+                      if (kategori != null && kategori.isNotEmpty)
+                        Align(
+                          alignment: Alignment.bottomLeft,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 3,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.teal.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Text(
+                              kategori.toUpperCase(),
+                              style: const TextStyle(
+                                color: Colors.teal,
+                                fontSize: 9,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+                // [PERUBAHAN] Widget untuk menampilkan tag status di pojok kanan atas
+                if (status != null && status.isNotEmpty)
+                  Positioned(
+                    top: 0,
+                    right: 0,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: _getStatusColor(status),
+                        borderRadius: const BorderRadius.only(
+                          topRight: Radius.circular(
+                            12,
+                          ), // Sesuaikan dengan radius Card
+                          bottomLeft: Radius.circular(12),
+                        ),
+                      ),
+                      child: Text(
+                        status.toUpperCase(),
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 8,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
             ),
           ),
         );
@@ -1108,6 +1310,7 @@ class _AllDataPageState extends State<AllDataPage> {
     );
   }
 }
+// ============== AKHIR DARI KODE YANG DIPERBARUI ==============
 
 class DetailPage extends StatelessWidget {
   final Map<String, dynamic> data;
