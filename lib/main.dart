@@ -17,16 +17,12 @@ const String googleAppScriptUrl =
 
 final GlobalKey<_MainPageState> mainPageKey = GlobalKey<_MainPageState>();
 
-// [PENTING] Handler untuk notifikasi saat aplikasi di background/terminated
 @pragma('vm:entry-point')
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   await Firebase.initializeApp();
   print("Handling a background message: ${message.messageId}");
-  // Jika Anda ingin menampilkan notifikasi lokal dari background,
-  // inisialisasi dan tampilkan di sini.
 }
 
-// [BARU] Inisialisasi plugin notifikasi lokal
 final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
     FlutterLocalNotificationsPlugin();
 
@@ -34,13 +30,11 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp();
 
-  // Set background handler
   FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
 
-  // [BARU] Konfigurasi untuk notifikasi foreground di Android
   const AndroidNotificationChannel channel = AndroidNotificationChannel(
-    'high_importance_channel', // ID channel
-    'High Importance Notifications', // Nama channel
+    'high_importance_channel',
+    'High Importance Notifications',
     description: 'This channel is used for important notifications.',
     importance: Importance.high,
   );
@@ -51,7 +45,6 @@ void main() async {
       >()
       ?.createNotificationChannel(channel);
 
-  // [BARU] Set foreground notification presentation options untuk iOS
   await FirebaseMessaging.instance.setForegroundNotificationPresentationOptions(
     alert: true,
     badge: true,
@@ -59,6 +52,72 @@ void main() async {
   );
 
   runApp(const MyApp());
+}
+
+class SuccessAnimation extends StatefulWidget {
+  const SuccessAnimation({super.key});
+
+  @override
+  State<SuccessAnimation> createState() => _SuccessAnimationState();
+}
+
+class _SuccessAnimationState extends State<SuccessAnimation>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<double> _scaleAnimation;
+  late Animation<double> _fadeAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 800),
+    );
+
+    _scaleAnimation = CurvedAnimation(
+      parent: _controller,
+      curve: Curves.easeOutBack,
+    );
+
+    _fadeAnimation = Tween<double>(
+      begin: 0,
+      end: 1,
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeIn));
+
+    _controller.forward();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FadeTransition(
+      opacity: _fadeAnimation,
+      child: ScaleTransition(
+        scale: _scaleAnimation,
+        child: Container(
+          padding: const EdgeInsets.all(18),
+          decoration: BoxDecoration(
+            color: Colors.green.shade600,
+            shape: BoxShape.circle,
+            boxShadow: [
+              BoxShadow(
+                color: Colors.green.withOpacity(0.4),
+                blurRadius: 12,
+                spreadRadius: 2,
+              ),
+            ],
+          ),
+          child: const Icon(Icons.check, size: 36, color: Colors.white),
+        ),
+      ),
+    );
+  }
 }
 
 class MyApp extends StatelessWidget {
@@ -474,7 +533,6 @@ class _MainPageState extends State<MainPage> {
 
     _requestNotificationPermission();
 
-    // [PERBAIKAN] Menggunakan FlutterLocalNotificationsPlugin untuk menampilkan notifikasi foreground
     FirebaseMessaging.onMessage.listen((RemoteMessage message) {
       RemoteNotification? notification = message.notification;
       AndroidNotification? android = message.notification?.android;
@@ -488,11 +546,11 @@ class _MainPageState extends State<MainPage> {
           notification.body,
           NotificationDetails(
             android: AndroidNotificationDetails(
-              'high_importance_channel', // ID channel yang sama dengan di main()
+              'high_importance_channel',
               'High Importance Notifications',
               channelDescription:
                   'This channel is used for important notifications.',
-              icon: 'launch_background', // Pastikan nama file drawable ini ada
+              icon: 'launch_background',
             ),
           ),
         );
@@ -558,7 +616,6 @@ class _MainPageState extends State<MainPage> {
   }
 }
 
-// ... Sisa kode Anda (HomePage, RecentActivitiesPage, dll) tetap sama ...
 class HomePage extends StatelessWidget {
   const HomePage({super.key});
 
@@ -816,7 +873,7 @@ class _RecentActivitiesPageState extends State<RecentActivitiesPage> {
   Future<void> _fetchRecentActivities() async {
     try {
       final response = await http
-          .get(Uri.parse("$apiUrl/proposals/recent"))
+          .get(Uri.parse(googleAppScriptUrl))
           .timeout(const Duration(seconds: 30));
       if (response.statusCode == 200) {
         final result = json.decode(response.body);
@@ -867,21 +924,31 @@ class _RecentActivitiesPageState extends State<RecentActivitiesPage> {
       itemCount: _activities.length,
       itemBuilder: (context, index) {
         final activity = _activities[index];
-        final no = activity['id']?.toString() ?? '-';
-        final sto = activity['sto']?.toString() ?? 'N/A';
+        final no = activity['NO']?.toString() ?? '-';
+        final sto = activity['STO']?.toString() ?? 'N/A';
         final uraian =
-            activity['uraian_pekerjaan']?.toString() ?? 'Tidak ada uraian';
+            activity['URAIAN PEKERJAAN']?.toString() ?? 'Tidak ada uraian';
 
-        return Card(
-          elevation: 2,
-          margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
-          child: ListTile(
-            leading: CircleAvatar(child: Text(no)),
-            title: Text(
-              "STO: $sto",
-              style: const TextStyle(fontWeight: FontWeight.bold),
+        return GestureDetector(
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => DetailPage(data: activity),
+              ),
+            );
+          },
+          child: Card(
+            elevation: 2,
+            margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
+            child: ListTile(
+              leading: CircleAvatar(child: Text(no)),
+              title: Text(
+                "STO: $sto",
+                style: const TextStyle(fontWeight: FontWeight.bold),
+              ),
+              subtitle: Text(uraian),
             ),
-            subtitle: Text(uraian),
           ),
         );
       },
@@ -899,7 +966,10 @@ class AllDataPage extends StatefulWidget {
 class _AllDataPageState extends State<AllDataPage> {
   bool _isLoading = true;
   List<dynamic> _allData = [];
+  List<dynamic> _filteredData = [];
   String? _error;
+  String? _selectedSTO;
+  List<String> _stoOptions = [];
 
   @override
   void initState() {
@@ -909,13 +979,20 @@ class _AllDataPageState extends State<AllDataPage> {
 
   Future<void> _fetchAllData() async {
     try {
-      final uri = Uri.parse("$apiUrl/proposals/all");
+      final uri = Uri.parse("$googleAppScriptUrl?action=getAll");
       final response = await http.get(uri).timeout(const Duration(seconds: 60));
       if (response.statusCode == 200) {
         final result = json.decode(response.body);
         if (result['status'] == 'success') {
           setState(() {
             _allData = result['data'];
+            _filteredData = _allData;
+            _stoOptions = _allData
+                .map((item) => item['STO']?.toString())
+                .whereType<String>() // This is the fix
+                .toSet()
+                .toList();
+            _stoOptions.sort();
             _isLoading = false;
           });
         } else {
@@ -932,10 +1009,52 @@ class _AllDataPageState extends State<AllDataPage> {
     }
   }
 
+  void _filterBySTO(String? sto) {
+    setState(() {
+      _selectedSTO = sto;
+      if (sto == null || sto == 'Semua') {
+        _filteredData = _allData;
+      } else {
+        _filteredData = _allData.where((item) => item['STO'] == sto).toList();
+      }
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Semua Data Usulan')),
+      appBar: AppBar(
+        title: const Text('Semua Data Usulan'),
+        actions: [
+          if (!_isLoading && _error == null)
+            Padding(
+              padding: const EdgeInsets.only(right: 8.0),
+              child: DropdownButtonHideUnderline(
+                child: DropdownButton<String>(
+                  value: _selectedSTO,
+                  icon: Icon(
+                    PhosphorIcons.funnel(),
+                    color: Theme.of(context).primaryColor,
+                  ),
+                  hint: const Text('Filter STO'),
+                  items: [
+                    const DropdownMenuItem(
+                      value: 'Semua',
+                      child: Text('Tampilkan Semua'),
+                    ),
+                    ..._stoOptions.map((String value) {
+                      return DropdownMenuItem<String>(
+                        value: value,
+                        child: Text(value),
+                      );
+                    }).toList(),
+                  ],
+                  onChanged: _filterBySTO,
+                ),
+              ),
+            ),
+        ],
+      ),
       body: _buildBody(),
     );
   }
@@ -952,32 +1071,228 @@ class _AllDataPageState extends State<AllDataPage> {
         ),
       );
     }
-    if (_allData.isEmpty) {
-      return const Center(child: Text('Tidak ada data.'));
+    if (_filteredData.isEmpty) {
+      return const Center(child: Text('Tidak ada data untuk filter ini.'));
     }
     return ListView.builder(
       padding: const EdgeInsets.all(8.0),
-      itemCount: _allData.length,
+      itemCount: _filteredData.length,
       itemBuilder: (context, index) {
-        final item = _allData[index];
-        final no = item['id']?.toString() ?? '-';
-        final sto = item['sto']?.toString() ?? 'N/A';
+        final item = _filteredData[index];
+        final no = item['NO']?.toString() ?? '-';
+        final sto = item['STO']?.toString() ?? 'N/A';
         final uraian =
-            item['uraian_pekerjaan']?.toString() ?? 'Tidak ada uraian';
+            item['URAIAN PEKERJAAN']?.toString() ?? 'Tidak ada uraian';
 
-        return Card(
-          elevation: 2,
-          margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
-          child: ListTile(
-            leading: CircleAvatar(child: Text(no)),
-            title: Text(
-              "STO: $sto",
-              style: const TextStyle(fontWeight: FontWeight.bold),
+        return GestureDetector(
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (context) => DetailPage(data: item)),
+            );
+          },
+          child: Card(
+            elevation: 2,
+            margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
+            child: ListTile(
+              leading: CircleAvatar(child: Text(no)),
+              title: Text(
+                "STO: $sto",
+                style: const TextStyle(fontWeight: FontWeight.bold),
+              ),
+              subtitle: Text(uraian),
             ),
-            subtitle: Text(uraian),
           ),
         );
       },
+    );
+  }
+}
+
+class DetailPage extends StatelessWidget {
+  final Map<String, dynamic> data;
+
+  const DetailPage({Key? key, required this.data}) : super(key: key);
+
+  Widget _buildInfoCard(
+    BuildContext context, {
+    required String label1,
+    required String value1,
+    String? label2,
+    String? value2,
+    bool isApproved = false,
+  }) {
+    return Card(
+      elevation: 2,
+      shadowColor: Colors.black.withOpacity(0.05),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    label1.toUpperCase(),
+                    style: TextStyle(
+                      color: Colors.grey[600],
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    value1,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF1B1D28),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            if (label2 != null && value2 != null) ...[
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      label2.toUpperCase(),
+                      style: TextStyle(
+                        color: Colors.grey[600],
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      value2,
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF1B1D28),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+            if (isApproved)
+              Row(
+                children: [
+                  Container(
+                    width: 8,
+                    height: 8,
+                    decoration: BoxDecoration(
+                      color: Colors.green[700],
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Approved',
+                    style: TextStyle(
+                      color: Colors.green[800],
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final List<Map<String, String>> pairedData = [
+      {'label': 'NOMOR TIKET', 'key': 'NOMOR TIKET/SC'},
+      {'label': 'STATUS', 'key': 'STATUS'},
+      {'label': 'JENIS TIKET', 'key': 'JENIS TIKET'},
+      {'label': 'TANGGAL', 'key': 'TANGGAL'},
+      {'label': 'NAMA PENGAUSUL', 'key': 'NAMA PENGAUSUL'},
+      {'label': 'ID', 'key': 'ID'},
+      {'label': 'APPROVAL ED', 'key': 'APPROVAL ED'},
+      {'label': 'DISTRICT', 'key': 'DISTRICT'},
+      {'label': 'AREA', 'key': 'AREA'},
+      {'label': 'ID/HLD', 'key': 'ID/HLD'},
+    ];
+
+    final remainingKeys = data.keys.where((key) {
+      return !pairedData.any((pair) => pair['key'] == key) &&
+          data[key] != null &&
+          data[key].toString().trim().isNotEmpty;
+    }).toList();
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Detail Data'),
+        backgroundColor: const Color(0xFFF0F8F7),
+        elevation: 0,
+        iconTheme: IconThemeData(color: Theme.of(context).primaryColor),
+      ),
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [Color(0xFFF0F8F7), Colors.white],
+          ),
+        ),
+        child: ListView.separated(
+          padding: const EdgeInsets.all(16.0),
+          itemCount: (pairedData.length / 2).ceil() + remainingKeys.length,
+          separatorBuilder: (context, index) => const SizedBox(height: 12),
+          itemBuilder: (context, index) {
+            if (index < (pairedData.length / 2).ceil()) {
+              final firstItemIndex = index * 2;
+              final secondItemIndex = firstItemIndex + 1;
+
+              final item1 = pairedData[firstItemIndex];
+              final value1 = data[item1['key']]?.toString() ?? 'N/A';
+
+              if (secondItemIndex < pairedData.length) {
+                final item2 = pairedData[secondItemIndex];
+                final value2 = data[item2['key']]?.toString() ?? 'N/A';
+                return _buildInfoCard(
+                  context,
+                  label1: item1['label']!,
+                  value1: value1,
+                  label2: item2['label']!,
+                  value2: value2,
+                  isApproved:
+                      value1.toLowerCase() == 'approved' ||
+                      value2.toLowerCase() == 'approved',
+                );
+              }
+
+              return _buildInfoCard(
+                context,
+                label1: item1['label']!,
+                value1: value1,
+                isApproved: value1.toLowerCase() == 'approved',
+              );
+            }
+
+            final remainingIndex = index - (pairedData.length / 2).ceil();
+            final key = remainingKeys[remainingIndex];
+            final value = data[key]?.toString() ?? 'N/A';
+
+            return _buildInfoCard(
+              context,
+              label1: key,
+              value1: value,
+              isApproved: value.toLowerCase() == 'approved',
+            );
+          },
+        ),
+      ),
     );
   }
 }
@@ -1307,7 +1622,9 @@ class _AddFormPageState extends State<AddFormPage> {
         Navigator.of(context, rootNavigator: true).pop();
         mainPageKey.currentState?.changePage(0);
         _formKey.currentState?.reset();
-        _formData.clear();
+        setState(() {
+          _formData.clear();
+        });
       }
     });
   }
@@ -1318,9 +1635,9 @@ class _AddFormPageState extends State<AddFormPage> {
       try {
         final response = await http
             .post(
-              Uri.parse("$apiUrl/proposals/store"),
+              Uri.parse(googleAppScriptUrl),
               headers: {'Content-Type': 'application/json; charset=UTF-8'},
-              body: json.encode(_formData),
+              body: json.encode({'action': 'addData', 'data': _formData}),
             )
             .timeout(const Duration(seconds: 30));
 
@@ -1341,8 +1658,48 @@ class _AddFormPageState extends State<AddFormPage> {
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Terjadi masalah koneksi: $e'),
-            backgroundColor: Colors.red,
+            backgroundColor: Colors.transparent, // biar card terlihat
+            elevation: 0,
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 2),
+            margin: const EdgeInsets.fromLTRB(
+              16,
+              0,
+              16,
+              40,
+            ), // agar mengambang di atas
+            content: Card(
+              color: const Color.fromARGB(
+                252,
+                105,
+                100,
+                100,
+              ), // abu-abu gelap untuk card
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+              elevation: 30, // shadow lebih tinggi
+              shadowColor: Colors.black.withOpacity(
+                0.6,
+              ), // warna shadow lebih jelas
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 24,
+                  vertical: 20,
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const SuccessAnimation(), // animasi sukses
+                    const SizedBox(height: 16),
+                    const Text(
+                      'Data berhasil ditambahkan!',
+                      style: TextStyle(color: Colors.white, fontSize: 16),
+                    ),
+                  ],
+                ),
+              ),
+            ),
           ),
         );
       } finally {
