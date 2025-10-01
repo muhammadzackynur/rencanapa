@@ -8,32 +8,55 @@ import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
 // --- KONFIGURASI ---
-// URL INI SEKARANG MENGARAH KE API LARAVEL ANDA
-// Pastikan backend Laravel Anda berjalan (php artisan serve --host=...)
-const String apiUrl = "http://192.168.100.152:8000/api";
-
-// URL untuk fitur lain yang masih menggunakan Google Script (bisa dimigrasi nanti)
+const String apiUrl = "http://192.168.1.63:8000/api";
 const String googleAppScriptUrl =
     "https://script.google.com/macros/s/AKfycbyKInb4bBsCwcg25VdiOIp1ZrNBfIfyMx6eSH12AKH7HFdfs10al69aQYoUn-T2_iT67g/exec";
 
 final GlobalKey<_MainPageState> mainPageKey = GlobalKey<_MainPageState>();
 
-// [FUNGSI BARU] Handler untuk notifikasi saat aplikasi di background/terminated
+// [PENTING] Handler untuk notifikasi saat aplikasi di background/terminated
 @pragma('vm:entry-point')
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   await Firebase.initializeApp();
   print("Handling a background message: ${message.messageId}");
+  // Jika Anda ingin menampilkan notifikasi lokal dari background,
+  // inisialisasi dan tampilkan di sini.
 }
 
+// [BARU] Inisialisasi plugin notifikasi lokal
+final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
+    FlutterLocalNotificationsPlugin();
+
 void main() async {
-  // Inisialisasi Firebase
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp();
 
   // Set background handler
   FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
+
+  // [BARU] Konfigurasi untuk notifikasi foreground di Android
+  const AndroidNotificationChannel channel = AndroidNotificationChannel(
+    'high_importance_channel', // ID channel
+    'High Importance Notifications', // Nama channel
+    description: 'This channel is used for important notifications.',
+    importance: Importance.high,
+  );
+
+  await flutterLocalNotificationsPlugin
+      .resolvePlatformSpecificImplementation<
+        AndroidFlutterLocalNotificationsPlugin
+      >()
+      ?.createNotificationChannel(channel);
+
+  // [BARU] Set foreground notification presentation options untuk iOS
+  await FirebaseMessaging.instance.setForegroundNotificationPresentationOptions(
+    alert: true,
+    badge: true,
+    sound: true,
+  );
 
   runApp(const MyApp());
 }
@@ -300,9 +323,15 @@ class _RegistrationPageState extends State<RegistrationPage> {
         _isLoading = true;
       });
 
-      // Dapatkan FCM Token dari perangkat
-      final fcmToken = await FirebaseMessaging.instance.getToken();
-      print('FCM Token: $fcmToken'); // Untuk debugging
+      String? fcmToken;
+      try {
+        fcmToken = await FirebaseMessaging.instance.getToken();
+        print('===================================================');
+        print('FCM Token yang didapat: $fcmToken');
+        print('===================================================');
+      } catch (e) {
+        print('Gagal mendapatkan FCM Token: $e');
+      }
 
       try {
         final response = await http.post(
@@ -311,7 +340,7 @@ class _RegistrationPageState extends State<RegistrationPage> {
           body: json.encode({
             'email': _email,
             'password': _password,
-            'fcm_token': fcmToken, // Kirim token ke Laravel
+            'fcm_token': fcmToken,
           }),
         );
 
@@ -443,31 +472,34 @@ class _MainPageState extends State<MainPage> {
     super.initState();
     _pages = [const HomePage(), const SearchPage(), _addFormPage];
 
-    // --- PERBAIKAN: Meminta izin notifikasi ---
     _requestNotificationPermission();
 
-    // Kode untuk mendengarkan notifikasi saat aplikasi terbuka
+    // [PERBAIKAN] Menggunakan FlutterLocalNotificationsPlugin untuk menampilkan notifikasi foreground
     FirebaseMessaging.onMessage.listen((RemoteMessage message) {
+      RemoteNotification? notification = message.notification;
+      AndroidNotification? android = message.notification?.android;
+
       print('Menerima notifikasi saat aplikasi terbuka!');
-      if (message.notification != null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              message.notification!.title ?? 'Notifikasi Baru',
-              style: const TextStyle(
-                fontWeight: FontWeight.bold,
-                color: Colors.white,
-              ),
+
+      if (notification != null && android != null) {
+        flutterLocalNotificationsPlugin.show(
+          notification.hashCode,
+          notification.title,
+          notification.body,
+          NotificationDetails(
+            android: AndroidNotificationDetails(
+              'high_importance_channel', // ID channel yang sama dengan di main()
+              'High Importance Notifications',
+              channelDescription:
+                  'This channel is used for important notifications.',
+              icon: 'launch_background', // Pastikan nama file drawable ini ada
             ),
-            behavior: SnackBarBehavior.floating,
-            backgroundColor: Colors.teal,
           ),
         );
       }
     });
   }
 
-  // --- FUNGSI BARU: Untuk meminta izin notifikasi ---
   Future<void> _requestNotificationPermission() async {
     FirebaseMessaging messaging = FirebaseMessaging.instance;
     NotificationSettings settings = await messaging.requestPermission(
@@ -481,12 +513,9 @@ class _MainPageState extends State<MainPage> {
     );
 
     if (settings.authorizationStatus == AuthorizationStatus.authorized) {
-      print('Izin notifikasi diberikan');
-    } else if (settings.authorizationStatus ==
-        AuthorizationStatus.provisional) {
-      print('Izin notifikasi provisional diberikan');
+      print('Izin notifikasi diberikan oleh pengguna.');
     } else {
-      print('Pengguna menolak atau belum memberikan izin notifikasi');
+      print('Pengguna menolak atau belum memberikan izin notifikasi.');
     }
   }
 
@@ -529,6 +558,7 @@ class _MainPageState extends State<MainPage> {
   }
 }
 
+// ... Sisa kode Anda (HomePage, RecentActivitiesPage, dll) tetap sama ...
 class HomePage extends StatelessWidget {
   const HomePage({super.key});
 
