@@ -972,6 +972,10 @@ class _AllDataPageState extends State<AllDataPage> {
   List<String> _stoOptions = [];
 
   final TextEditingController _searchController = TextEditingController();
+  // ============== KODE BARU UNTUK FITUR SCROLL ==============
+  final ScrollController _scrollController = ScrollController();
+  bool _showScrollButtons = false;
+  // ==========================================================
 
   @override
   void initState() {
@@ -980,11 +984,29 @@ class _AllDataPageState extends State<AllDataPage> {
     _searchController.addListener(() {
       _runFilter();
     });
+
+    // ============== LISTENER BARU UNTUK TOMBOL SCROLL ==============
+    _scrollController.addListener(() {
+      // Tampilkan tombol jika user scroll lebih dari 300 pixel ke bawah
+      if (_scrollController.offset > 300 && !_showScrollButtons) {
+        setState(() {
+          _showScrollButtons = true;
+        });
+      }
+      // Sembunyikan jika kembali ke atas
+      else if (_scrollController.offset <= 300 && _showScrollButtons) {
+        setState(() {
+          _showScrollButtons = false;
+        });
+      }
+    });
+    // =============================================================
   }
 
   @override
   void dispose() {
     _searchController.dispose();
+    _scrollController.dispose(); // <-- Jangan lupa dispose controller
     super.dispose();
   }
 
@@ -1057,7 +1079,6 @@ class _AllDataPageState extends State<AllDataPage> {
     });
   }
 
-  // ============== FUNGSI BARU UNTUK MENDAPATKAN WARNA STATUS ==============
   Color _getStatusColor(String? status) {
     if (status == null) return Colors.grey;
     switch (status.toLowerCase()) {
@@ -1075,6 +1096,24 @@ class _AllDataPageState extends State<AllDataPage> {
         return Colors.black;
     }
   }
+
+  // ============== FUNGSI BARU UNTUK SCROLL ==============
+  void _scrollToTop() {
+    _scrollController.animateTo(
+      0,
+      duration: const Duration(milliseconds: 500),
+      curve: Curves.easeInOut,
+    );
+  }
+
+  void _scrollToBottom() {
+    _scrollController.animateTo(
+      _scrollController.position.maxScrollExtent,
+      duration: const Duration(milliseconds: 500),
+      curve: Curves.easeInOut,
+    );
+  }
+  // =====================================================
 
   @override
   Widget build(BuildContext context) {
@@ -1111,26 +1150,57 @@ class _AllDataPageState extends State<AllDataPage> {
             ),
         ],
       ),
-      body: Column(
+      // ============== PERUBAHAN: BODY DIBUNGKUS STACK ==============
+      body: Stack(
         children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-            child: TextField(
-              controller: _searchController,
-              decoration: InputDecoration(
-                hintText: 'Cari (No. Tiket, Uraian, Kategori, dll)',
-                prefixIcon: Icon(PhosphorIcons.magnifyingGlass()),
-                contentPadding: const EdgeInsets.symmetric(vertical: 10),
-                fillColor: Colors.white,
-                filled: true,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(20),
-                  borderSide: BorderSide.none,
+          Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                child: TextField(
+                  controller: _searchController,
+                  decoration: InputDecoration(
+                    hintText: 'Cari (No. Tiket, Uraian, Kategori, dll)',
+                    prefixIcon: Icon(PhosphorIcons.magnifyingGlass()),
+                    contentPadding: const EdgeInsets.symmetric(vertical: 10),
+                    fillColor: Colors.white,
+                    filled: true,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(20),
+                      borderSide: BorderSide.none,
+                    ),
+                  ),
                 ),
+              ),
+              Expanded(child: _buildGridBody()),
+            ],
+          ),
+          // ============== WIDGET BARU UNTUK TOMBOL SCROLL ==============
+          Positioned(
+            bottom: 16,
+            right: 16,
+            child: AnimatedOpacity(
+              opacity: _showScrollButtons ? 1.0 : 0.0,
+              duration: const Duration(milliseconds: 300),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  FloatingActionButton.small(
+                    onPressed: _scrollToTop,
+                    heroTag: 'scrollTop',
+                    child: const Icon(Icons.arrow_upward),
+                  ),
+                  const SizedBox(height: 8),
+                  FloatingActionButton.small(
+                    onPressed: _scrollToBottom,
+                    heroTag: 'scrollBottom',
+                    child: const Icon(Icons.arrow_downward),
+                  ),
+                ],
               ),
             ),
           ),
-          Expanded(child: _buildGridBody()),
+          // =============================================================
         ],
       ),
     );
@@ -1153,6 +1223,9 @@ class _AllDataPageState extends State<AllDataPage> {
     }
 
     return GridView.builder(
+      // ============== CONTROLLER DIPASANG DI SINI ==============
+      controller: _scrollController,
+      // =========================================================
       padding: const EdgeInsets.all(12.0),
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 2,
@@ -1168,7 +1241,6 @@ class _AllDataPageState extends State<AllDataPage> {
         final String mainUraian =
             item['URAIAN PEKERJAAN']?.toString() ?? 'Tidak ada uraian';
         final String? kategori = item['KATEGORI KEGIATAN']?.toString();
-        // [PERUBAHAN] Mengambil data status
         final String? status = item['STATUS']?.toString();
 
         return GestureDetector(
@@ -1179,8 +1251,7 @@ class _AllDataPageState extends State<AllDataPage> {
             );
           },
           child: Card(
-            clipBehavior:
-                Clip.antiAlias, // Penting untuk rounded corner pada Stack
+            clipBehavior: Clip.antiAlias,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(12),
             ),
@@ -1188,7 +1259,6 @@ class _AllDataPageState extends State<AllDataPage> {
             shadowColor: Colors.black.withOpacity(0.1),
             child: Stack(
               children: [
-                // Konten utama kartu
                 Padding(
                   padding: const EdgeInsets.all(12.0),
                   child: Column(
@@ -1273,7 +1343,6 @@ class _AllDataPageState extends State<AllDataPage> {
                     ],
                   ),
                 ),
-                // [PERUBAHAN] Widget untuk menampilkan tag status di pojok kanan atas
                 if (status != null && status.isNotEmpty)
                   Positioned(
                     top: 0,
@@ -1286,9 +1355,7 @@ class _AllDataPageState extends State<AllDataPage> {
                       decoration: BoxDecoration(
                         color: _getStatusColor(status),
                         borderRadius: const BorderRadius.only(
-                          topRight: Radius.circular(
-                            12,
-                          ), // Sesuaikan dengan radius Card
+                          topRight: Radius.circular(12),
                           bottomLeft: Radius.circular(12),
                         ),
                       ),
@@ -1310,7 +1377,6 @@ class _AllDataPageState extends State<AllDataPage> {
     );
   }
 }
-// ============== AKHIR DARI KODE YANG DIPERBARUI ==============
 
 class DetailPage extends StatelessWidget {
   final Map<String, dynamic> data;
