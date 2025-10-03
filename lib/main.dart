@@ -11,7 +11,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
 // --- KONFIGURASI ---
-const String apiUrl = "http://192.168.1.63:8000/api";
+const String apiUrl = "http://192.168.1.79:8000/api";
 const String googleAppScriptUrl =
     "https://script.google.com/macros/s/AKfycbyKInb4bBsCwcg25VdiOIp1ZrNBfIfyMx6eSH12AKH7HFdfs10al69aQYoUn-T2_iT67g/exec";
 
@@ -53,6 +53,8 @@ void main() async {
 
   runApp(const MyApp());
 }
+
+// --- WIDGETS ANIMASI ---
 
 class SuccessAnimation extends StatefulWidget {
   const SuccessAnimation({super.key});
@@ -120,6 +122,92 @@ class _SuccessAnimationState extends State<SuccessAnimation>
   }
 }
 
+class SuccessCheckmarkAnimation extends StatefulWidget {
+  const SuccessCheckmarkAnimation({super.key, this.size = 150.0});
+  final double size;
+
+  @override
+  State<SuccessCheckmarkAnimation> createState() =>
+      _SuccessCheckmarkAnimationState();
+}
+
+class _SuccessCheckmarkAnimationState extends State<SuccessCheckmarkAnimation>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<double> _animation;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 800),
+    );
+    _animation = Tween<double>(
+      begin: 0,
+      end: 1,
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut));
+    _controller.forward();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: widget.size,
+      height: widget.size,
+      child: AnimatedBuilder(
+        animation: _animation,
+        builder: (context, child) {
+          return CustomPaint(
+            painter: CheckmarkPainter(progress: _animation.value),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class CheckmarkPainter extends CustomPainter {
+  final double progress;
+
+  CheckmarkPainter({required this.progress});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final Paint paint = Paint()
+      ..color = Colors.green
+      ..strokeWidth = 10.0
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round;
+
+    final Path path = Path();
+    path.moveTo(size.width * 0.2, size.height * 0.5);
+    path.lineTo(size.width * 0.45, size.height * 0.7);
+    path.lineTo(size.width * 0.8, size.height * 0.3);
+
+    for (PathMetric pathMetric in path.computeMetrics()) {
+      final Path extractPath = pathMetric.extractPath(
+        0.0,
+        pathMetric.length * progress,
+      );
+      canvas.drawPath(extractPath, paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) {
+    return true;
+  }
+}
+
+// --- APLIKASI UTAMA ---
+
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
 
@@ -160,22 +248,26 @@ class MyApp extends StatelessWidget {
           ),
         ),
       ),
-      home: const AuthWrapper(),
+      home: const AuthGate(),
     );
   }
 }
 
-class AuthWrapper extends StatefulWidget {
-  const AuthWrapper({super.key});
+// --- GERBANG OTENTIKASI ---
+
+class AuthGate extends StatefulWidget {
+  const AuthGate({super.key});
 
   @override
-  _AuthWrapperState createState() => _AuthWrapperState();
+  _AuthGateState createState() => _AuthGateState();
 }
 
-class _AuthWrapperState extends State<AuthWrapper> {
+class _AuthGateState extends State<AuthGate> {
   Future<bool> _checkLoginStatus() async {
     final prefs = await SharedPreferences.getInstance();
-    return prefs.getBool('isLoggedIn') ?? false;
+    // Cek apakah user biasa ATAU admin sudah login
+    return (prefs.getBool('isLoggedIn') ?? false) ||
+        (prefs.getBool('isAdminLoggedIn') ?? false);
   }
 
   @override
@@ -189,15 +281,85 @@ class _AuthWrapperState extends State<AuthWrapper> {
           );
         } else {
           if (snapshot.data == true) {
+            // Jika sudah login, langsung ke halaman utama
             return MainPage(key: mainPageKey);
           } else {
-            return const LoginPage();
+            // Jika belum, tampilkan halaman pemilihan peran
+            return const RoleSelectionPage();
           }
         }
       },
     );
   }
 }
+
+// --- HALAMAN PEMILIHAN PERAN ---
+class RoleSelectionPage extends StatelessWidget {
+  const RoleSelectionPage({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: Container(
+        width: double.infinity,
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [Color(0xFFE0F2F1), Colors.white],
+          ),
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Text(
+              'Selamat Datang',
+              style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 10),
+            const Text(
+              'Silakan pilih tipe akun Anda',
+              style: TextStyle(fontSize: 18, color: Colors.grey),
+            ),
+            const SizedBox(height: 50),
+            SizedBox(
+              width: 250,
+              child: ElevatedButton(
+                onPressed: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(builder: (context) => const LoginPage()),
+                  );
+                },
+                child: const Text('Masuk sebagai Pengguna'),
+              ),
+            ),
+            const SizedBox(height: 20),
+            SizedBox(
+              width: 250,
+              child: ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(
+                    0xFF00897B,
+                  ), // Warna berbeda untuk admin
+                ),
+                onPressed: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (context) => const AdminLoginPage(),
+                    ),
+                  );
+                },
+                child: const Text('Masuk sebagai Admin'),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// --- HALAMAN LOGIN PENGGUNA ---
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -363,6 +525,138 @@ class _LoginPageState extends State<LoginPage> {
   }
 }
 
+// --- [PERBAIKAN] HALAMAN LOGIN ADMIN DENGAN ID ---
+
+class AdminLoginPage extends StatefulWidget {
+  const AdminLoginPage({super.key});
+
+  @override
+  _AdminLoginPageState createState() => _AdminLoginPageState();
+}
+
+class _AdminLoginPageState extends State<AdminLoginPage> {
+  final _formKey = GlobalKey<FormState>();
+  String _adminId = ''; // Hanya butuh satu variabel
+  bool _isLoading = false;
+
+  Future<void> _loginAdmin() async {
+    if (_formKey.currentState!.validate()) {
+      setState(() => _isLoading = true);
+      try {
+        // [PERBAIKAN] Kirim 'admin_id' bukan email/password
+        final response = await http.post(
+          Uri.parse("$apiUrl/admin/login"),
+          headers: {'Content-Type': 'application/json; charset=UTF-8'},
+          body: json.encode({'admin_id': _adminId}),
+        );
+
+        if (!mounted) return;
+        final responseData = json.decode(response.body);
+
+        if (responseData['status'] == 'success') {
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setBool('isAdminLoggedIn', true);
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(builder: (context) => MainPage(key: mainPageKey)),
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(responseData['message'] ?? 'Login Admin Gagal!'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      } catch (e) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Terjadi kesalahan koneksi: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      } finally {
+        if (mounted) {
+          setState(() => _isLoading = false);
+        }
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Login Administrator'),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+      ),
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [Color(0xFFE0F2F1), Colors.white],
+          ),
+        ),
+        child: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(32.0),
+            child: Form(
+              key: _formKey,
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  PhosphorIcon(
+                    PhosphorIcons.key(), // Ganti ikon menjadi kunci
+                    color: Theme.of(context).colorScheme.secondary,
+                    size: 80,
+                  ),
+                  const SizedBox(height: 20),
+                  const Text(
+                    'Akses Khusus Admin',
+                    style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 40),
+                  // [PERBAIKAN] Hanya satu TextFormField untuk ID
+                  TextFormField(
+                    decoration: InputDecoration(
+                      labelText: 'Masukkan ID Admin',
+                      prefixIcon: Icon(PhosphorIcons.qrCode()),
+                    ),
+                    obscureText: true, // Sembunyikan ID saat diketik
+                    validator: (value) {
+                      if (value == null || value.isEmpty) {
+                        return 'ID Admin tidak boleh kosong';
+                      }
+                      return null;
+                    },
+                    onChanged: (value) => _adminId = value.trim(),
+                  ),
+                  const SizedBox(height: 30),
+                  _isLoading
+                      ? const CircularProgressIndicator()
+                      : SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFF00897B),
+                            ),
+                            onPressed: _loginAdmin,
+                            child: const Text('MASUK'),
+                          ),
+                        ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// --- HALAMAN REGISTRASI ---
+
 class RegistrationPage extends StatefulWidget {
   const RegistrationPage({super.key});
 
@@ -515,6 +809,8 @@ class _RegistrationPageState extends State<RegistrationPage> {
   }
 }
 
+// --- CONTAINER HALAMAN UTAMA (DENGAN BOTTOM NAV) ---
+
 class MainPage extends StatefulWidget {
   const MainPage({super.key});
   @override
@@ -523,13 +819,12 @@ class MainPage extends StatefulWidget {
 
 class _MainPageState extends State<MainPage> {
   int _selectedIndex = 0;
-  final AddFormPage _addFormPage = const AddFormPage();
   late final List<Widget> _pages;
 
   @override
   void initState() {
     super.initState();
-    _pages = [const HomePage(), const SearchPage(), _addFormPage];
+    _pages = [const HomePage(), const SearchPage(), const AddFormPage()];
 
     _requestNotificationPermission();
 
@@ -544,7 +839,7 @@ class _MainPageState extends State<MainPage> {
           notification.hashCode,
           notification.title,
           notification.body,
-          NotificationDetails(
+          const NotificationDetails(
             android: AndroidNotificationDetails(
               'high_importance_channel',
               'High Importance Notifications',
@@ -616,14 +911,18 @@ class _MainPageState extends State<MainPage> {
   }
 }
 
+// --- HALAMAN-HALAMAN KONTEN ---
+
 class HomePage extends StatelessWidget {
   const HomePage({super.key});
 
   Future<void> _logout(BuildContext context) async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool('isLoggedIn', false);
+    // Hapus kedua flag login saat logout
+    await prefs.remove('isLoggedIn');
+    await prefs.remove('isAdminLoggedIn');
     Navigator.of(context).pushReplacement(
-      MaterialPageRoute(builder: (context) => const LoginPage()),
+      MaterialPageRoute(builder: (context) => const RoleSelectionPage()),
     );
   }
 
@@ -972,10 +1271,8 @@ class _AllDataPageState extends State<AllDataPage> {
   List<String> _stoOptions = [];
 
   final TextEditingController _searchController = TextEditingController();
-  // ============== KODE BARU UNTUK FITUR SCROLL ==============
   final ScrollController _scrollController = ScrollController();
   bool _showScrollButtons = false;
-  // ==========================================================
 
   @override
   void initState() {
@@ -985,28 +1282,23 @@ class _AllDataPageState extends State<AllDataPage> {
       _runFilter();
     });
 
-    // ============== LISTENER BARU UNTUK TOMBOL SCROLL ==============
     _scrollController.addListener(() {
-      // Tampilkan tombol jika user scroll lebih dari 300 pixel ke bawah
       if (_scrollController.offset > 300 && !_showScrollButtons) {
         setState(() {
           _showScrollButtons = true;
         });
-      }
-      // Sembunyikan jika kembali ke atas
-      else if (_scrollController.offset <= 300 && _showScrollButtons) {
+      } else if (_scrollController.offset <= 300 && _showScrollButtons) {
         setState(() {
           _showScrollButtons = false;
         });
       }
     });
-    // =============================================================
   }
 
   @override
   void dispose() {
     _searchController.dispose();
-    _scrollController.dispose(); // <-- Jangan lupa dispose controller
+    _scrollController.dispose();
     super.dispose();
   }
 
@@ -1097,7 +1389,6 @@ class _AllDataPageState extends State<AllDataPage> {
     }
   }
 
-  // ============== FUNGSI BARU UNTUK SCROLL ==============
   void _scrollToTop() {
     _scrollController.animateTo(
       0,
@@ -1113,7 +1404,6 @@ class _AllDataPageState extends State<AllDataPage> {
       curve: Curves.easeInOut,
     );
   }
-  // =====================================================
 
   @override
   Widget build(BuildContext context) {
@@ -1150,7 +1440,6 @@ class _AllDataPageState extends State<AllDataPage> {
             ),
         ],
       ),
-      // ============== PERUBAHAN: BODY DIBUNGKUS STACK ==============
       body: Stack(
         children: [
           Column(
@@ -1175,7 +1464,6 @@ class _AllDataPageState extends State<AllDataPage> {
               Expanded(child: _buildGridBody()),
             ],
           ),
-          // ============== WIDGET BARU UNTUK TOMBOL SCROLL ==============
           Positioned(
             bottom: 16,
             right: 16,
@@ -1200,7 +1488,6 @@ class _AllDataPageState extends State<AllDataPage> {
               ),
             ),
           ),
-          // =============================================================
         ],
       ),
     );
@@ -1223,9 +1510,7 @@ class _AllDataPageState extends State<AllDataPage> {
     }
 
     return GridView.builder(
-      // ============== CONTROLLER DIPASANG DI SINI ==============
       controller: _scrollController,
-      // =========================================================
       padding: const EdgeInsets.all(12.0),
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 2,
@@ -1566,132 +1851,6 @@ class DetailPage extends StatelessWidget {
   }
 }
 
-class StatCard extends StatelessWidget {
-  final String title, value;
-  final IconData icon;
-  final Color iconColor, iconBgColor;
-
-  const StatCard({
-    Key? key,
-    required this.title,
-    required this.value,
-    required this.icon,
-    required this.iconColor,
-    required this.iconBgColor,
-  }) : super(key: key);
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(15),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.grey.withOpacity(0.1),
-            spreadRadius: 1,
-            blurRadius: 10,
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: iconBgColor,
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Icon(icon, color: iconColor, size: 20),
-          ),
-          const SizedBox(height: 10),
-          Text(title, style: const TextStyle(color: Colors.grey, fontSize: 14)),
-          const SizedBox(height: 5),
-          Text(
-            value,
-            style: const TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-              color: Color(0xFF1B1D28),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class QuickActionCard extends StatelessWidget {
-  final IconData icon;
-  final Color iconBgColor;
-  final String title, subtitle;
-  final VoidCallback onTap;
-
-  const QuickActionCard({
-    Key? key,
-    required this.icon,
-    required this.iconBgColor,
-    required this.title,
-    required this.subtitle,
-    required this.onTap,
-  }) : super(key: key);
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.all(15),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(20),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.grey.withOpacity(0.1),
-              spreadRadius: 1,
-              blurRadius: 10,
-            ),
-          ],
-        ),
-        child: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: iconBgColor,
-                borderRadius: BorderRadius.circular(15),
-              ),
-              child: Icon(icon, color: Colors.white, size: 24),
-            ),
-            const SizedBox(width: 15),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(height: 3),
-                Text(
-                  subtitle,
-                  style: const TextStyle(color: Colors.grey, fontSize: 14),
-                ),
-              ],
-            ),
-            const Spacer(),
-            const Icon(Icons.chevron_right, color: Colors.grey, size: 28),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
 class SearchPage extends StatefulWidget {
   const SearchPage({super.key});
   @override
@@ -1704,90 +1863,6 @@ class _SearchPageState extends State<SearchPage> {
     appBar: AppBar(title: const Text('Cek Data')),
     body: const Center(child: Text('Halaman Pencarian')),
   );
-}
-
-class SuccessCheckmarkAnimation extends StatefulWidget {
-  const SuccessCheckmarkAnimation({super.key, this.size = 150.0});
-  final double size;
-
-  @override
-  State<SuccessCheckmarkAnimation> createState() =>
-      _SuccessCheckmarkAnimationState();
-}
-
-class _SuccessCheckmarkAnimationState extends State<SuccessCheckmarkAnimation>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _controller;
-  late Animation<double> _animation;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 800),
-    );
-    _animation = Tween<double>(
-      begin: 0,
-      end: 1,
-    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut));
-    _controller.forward();
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      width: widget.size,
-      height: widget.size,
-      child: AnimatedBuilder(
-        animation: _animation,
-        builder: (context, child) {
-          return CustomPaint(
-            painter: CheckmarkPainter(progress: _animation.value),
-          );
-        },
-      ),
-    );
-  }
-}
-
-class CheckmarkPainter extends CustomPainter {
-  final double progress;
-
-  CheckmarkPainter({required this.progress});
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final Paint paint = Paint()
-      ..color = Colors.green
-      ..strokeWidth = 10.0
-      ..style = PaintingStyle.stroke
-      ..strokeCap = StrokeCap.round;
-
-    final Path path = Path();
-    path.moveTo(size.width * 0.2, size.height * 0.5);
-    path.lineTo(size.width * 0.45, size.height * 0.7);
-    path.lineTo(size.width * 0.8, size.height * 0.3);
-
-    for (PathMetric pathMetric in path.computeMetrics()) {
-      final Path extractPath = pathMetric.extractPath(
-        0.0,
-        pathMetric.length * progress,
-      );
-      canvas.drawPath(extractPath, paint);
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) {
-    return true;
-  }
 }
 
 class AddFormPage extends StatefulWidget {
@@ -1927,41 +2002,26 @@ class _AddFormPageState extends State<AddFormPage> {
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            backgroundColor: Colors.transparent, // biar card terlihat
+            backgroundColor: Colors.transparent,
             elevation: 0,
             behavior: SnackBarBehavior.floating,
             duration: const Duration(seconds: 2),
-            margin: const EdgeInsets.fromLTRB(
-              16,
-              0,
-              16,
-              40,
-            ), // agar mengambang di atas
+            margin: const EdgeInsets.fromLTRB(16, 0, 16, 40),
             content: Card(
-              color: const Color.fromARGB(
-                252,
-                105,
-                100,
-                100,
-              ), // abu-abu gelap untuk card
+              color: const Color.fromARGB(252, 105, 100, 100),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(16),
               ),
-              elevation: 30, // shadow lebih tinggi
-              shadowColor: Colors.black.withOpacity(
-                0.6,
-              ), // warna shadow lebih jelas
-              child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 24,
-                  vertical: 20,
-                ),
+              elevation: 30,
+              shadowColor: Colors.black.withOpacity(0.6),
+              child: const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 24, vertical: 20),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const SuccessAnimation(), // animasi sukses
-                    const SizedBox(height: 16),
-                    const Text(
+                    SuccessAnimation(),
+                    SizedBox(height: 16),
+                    Text(
                       'Data berhasil ditambahkan!',
                       style: TextStyle(color: Colors.white, fontSize: 16),
                     ),
@@ -2129,5 +2189,133 @@ class _AddFormPageState extends State<AddFormPage> {
       default:
         return PhosphorIcons.question();
     }
+  }
+}
+
+// --- WIDGET-WIDGET KUSTOM ---
+
+class StatCard extends StatelessWidget {
+  final String title, value;
+  final IconData icon;
+  final Color iconColor, iconBgColor;
+
+  const StatCard({
+    Key? key,
+    required this.title,
+    required this.value,
+    required this.icon,
+    required this.iconColor,
+    required this.iconBgColor,
+  }) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(15),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.grey.withOpacity(0.1),
+            spreadRadius: 1,
+            blurRadius: 10,
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: iconBgColor,
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(icon, color: iconColor, size: 20),
+          ),
+          const SizedBox(height: 10),
+          Text(title, style: const TextStyle(color: Colors.grey, fontSize: 14)),
+          const SizedBox(height: 5),
+          Text(
+            value,
+            style: const TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: Color(0xFF1B1D28),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class QuickActionCard extends StatelessWidget {
+  final IconData icon;
+  final Color iconBgColor;
+  final String title, subtitle;
+  final VoidCallback onTap;
+
+  const QuickActionCard({
+    Key? key,
+    required this.icon,
+    required this.iconBgColor,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+  }) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(15),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.grey.withOpacity(0.1),
+              spreadRadius: 1,
+              blurRadius: 10,
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: iconBgColor,
+                borderRadius: BorderRadius.circular(15),
+              ),
+              child: Icon(icon, color: Colors.white, size: 24),
+            ),
+            const SizedBox(width: 15),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  subtitle,
+                  style: const TextStyle(color: Colors.grey, fontSize: 14),
+                ),
+              ],
+            ),
+            const Spacer(),
+            const Icon(Icons.chevron_right, color: Colors.grey, size: 28),
+          ],
+        ),
+      ),
+    );
   }
 }
