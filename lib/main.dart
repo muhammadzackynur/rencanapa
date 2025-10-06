@@ -11,7 +11,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
 // --- KONFIGURASI ---
-const String apiUrl = "http://192.168.1.79:8000/api";
+const String apiUrl = "http://192.168.1.54:8000/api";
 const String googleAppScriptUrl =
     "https://script.google.com/macros/s/AKfycbyKInb4bBsCwcg25VdiOIp1ZrNBfIfyMx6eSH12AKH7HFdfs10al69aQYoUn-T2_iT67g/exec";
 
@@ -525,7 +525,7 @@ class _LoginPageState extends State<LoginPage> {
   }
 }
 
-// --- [PERBAIKAN] HALAMAN LOGIN ADMIN DENGAN ID ---
+// --- HALAMAN LOGIN ADMIN DENGAN ID ---
 
 class AdminLoginPage extends StatefulWidget {
   const AdminLoginPage({super.key});
@@ -536,14 +536,13 @@ class AdminLoginPage extends StatefulWidget {
 
 class _AdminLoginPageState extends State<AdminLoginPage> {
   final _formKey = GlobalKey<FormState>();
-  String _adminId = ''; // Hanya butuh satu variabel
+  String _adminId = '';
   bool _isLoading = false;
 
   Future<void> _loginAdmin() async {
     if (_formKey.currentState!.validate()) {
       setState(() => _isLoading = true);
       try {
-        // [PERBAIKAN] Kirim 'admin_id' bukan email/password
         final response = await http.post(
           Uri.parse("$apiUrl/admin/login"),
           headers: {'Content-Type': 'application/json; charset=UTF-8'},
@@ -607,7 +606,7 @@ class _AdminLoginPageState extends State<AdminLoginPage> {
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   PhosphorIcon(
-                    PhosphorIcons.key(), // Ganti ikon menjadi kunci
+                    PhosphorIcons.key(),
                     color: Theme.of(context).colorScheme.secondary,
                     size: 80,
                   ),
@@ -617,13 +616,12 @@ class _AdminLoginPageState extends State<AdminLoginPage> {
                     style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 40),
-                  // [PERBAIKAN] Hanya satu TextFormField untuk ID
                   TextFormField(
                     decoration: InputDecoration(
                       labelText: 'Masukkan ID Admin',
                       prefixIcon: Icon(PhosphorIcons.qrCode()),
                     ),
-                    obscureText: true, // Sembunyikan ID saat diketik
+                    obscureText: true,
                     validator: (value) {
                       if (value == null || value.isEmpty) {
                         return 'ID Admin tidak boleh kosong';
@@ -918,7 +916,6 @@ class HomePage extends StatelessWidget {
 
   Future<void> _logout(BuildContext context) async {
     final prefs = await SharedPreferences.getInstance();
-    // Hapus kedua flag login saat logout
     await prefs.remove('isLoggedIn');
     await prefs.remove('isAdminLoggedIn');
     Navigator.of(context).pushReplacement(
@@ -1271,8 +1268,10 @@ class _AllDataPageState extends State<AllDataPage> {
   List<String> _stoOptions = [];
 
   final TextEditingController _searchController = TextEditingController();
+  // ============== KODE BARU UNTUK FITUR SCROLL ==============
   final ScrollController _scrollController = ScrollController();
   bool _showScrollButtons = false;
+  // ==========================================================
 
   @override
   void initState() {
@@ -1282,23 +1281,28 @@ class _AllDataPageState extends State<AllDataPage> {
       _runFilter();
     });
 
+    // ============== LISTENER BARU UNTUK TOMBOL SCROLL ==============
     _scrollController.addListener(() {
+      // Tampilkan tombol jika user scroll lebih dari 300 pixel ke bawah
       if (_scrollController.offset > 300 && !_showScrollButtons) {
         setState(() {
           _showScrollButtons = true;
         });
-      } else if (_scrollController.offset <= 300 && _showScrollButtons) {
+      }
+      // Sembunyikan jika kembali ke atas
+      else if (_scrollController.offset <= 300 && _showScrollButtons) {
         setState(() {
           _showScrollButtons = false;
         });
       }
     });
+    // =============================================================
   }
 
   @override
   void dispose() {
     _searchController.dispose();
-    _scrollController.dispose();
+    _scrollController.dispose(); // <-- Jangan lupa dispose controller
     super.dispose();
   }
 
@@ -1389,6 +1393,7 @@ class _AllDataPageState extends State<AllDataPage> {
     }
   }
 
+  // ============== FUNGSI BARU UNTUK SCROLL ==============
   void _scrollToTop() {
     _scrollController.animateTo(
       0,
@@ -1404,6 +1409,7 @@ class _AllDataPageState extends State<AllDataPage> {
       curve: Curves.easeInOut,
     );
   }
+  // =====================================================
 
   @override
   Widget build(BuildContext context) {
@@ -1440,6 +1446,7 @@ class _AllDataPageState extends State<AllDataPage> {
             ),
         ],
       ),
+      // ============== PERUBAHAN: BODY DIBUNGKUS STACK ==============
       body: Stack(
         children: [
           Column(
@@ -1464,6 +1471,7 @@ class _AllDataPageState extends State<AllDataPage> {
               Expanded(child: _buildGridBody()),
             ],
           ),
+          // ============== WIDGET BARU UNTUK TOMBOL SCROLL ==============
           Positioned(
             bottom: 16,
             right: 16,
@@ -1488,6 +1496,7 @@ class _AllDataPageState extends State<AllDataPage> {
               ),
             ),
           ),
+          // =============================================================
         ],
       ),
     );
@@ -1510,7 +1519,9 @@ class _AllDataPageState extends State<AllDataPage> {
     }
 
     return GridView.builder(
+      // ============== CONTROLLER DIPASANG DI SINI ==============
       controller: _scrollController,
+      // =========================================================
       padding: const EdgeInsets.all(12.0),
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 2,
@@ -1663,10 +1674,34 @@ class _AllDataPageState extends State<AllDataPage> {
   }
 }
 
-class DetailPage extends StatelessWidget {
+// --- [MODIFIKASI] HALAMAN DETAIL MENJADI STATEFUL WIDGET ---
+
+class DetailPage extends StatefulWidget {
   final Map<String, dynamic> data;
 
   const DetailPage({Key? key, required this.data}) : super(key: key);
+
+  @override
+  State<DetailPage> createState() => _DetailPageState();
+}
+
+class _DetailPageState extends State<DetailPage> {
+  bool _isAdmin = false;
+  late Map<String, dynamic> _currentData;
+
+  @override
+  void initState() {
+    super.initState();
+    _currentData = widget.data;
+    _checkAdminStatus();
+  }
+
+  Future<void> _checkAdminStatus() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      _isAdmin = prefs.getBool('isAdminLoggedIn') ?? false;
+    });
+  }
 
   Widget _buildInfoCard(
     BuildContext context, {
@@ -1674,7 +1709,6 @@ class DetailPage extends StatelessWidget {
     required String value1,
     String? label2,
     String? value2,
-    bool isApproved = false,
   }) {
     return Card(
       elevation: 2,
@@ -1736,27 +1770,6 @@ class DetailPage extends StatelessWidget {
                 ),
               ),
             ],
-            if (isApproved)
-              Row(
-                children: [
-                  Container(
-                    width: 8,
-                    height: 8,
-                    decoration: BoxDecoration(
-                      color: Colors.green[700],
-                      shape: BoxShape.circle,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    'Approved',
-                    style: TextStyle(
-                      color: Colors.green[800],
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ],
-              ),
           ],
         ),
       ),
@@ -1778,10 +1791,10 @@ class DetailPage extends StatelessWidget {
       {'label': 'ID/HLD', 'key': 'ID/HLD'},
     ];
 
-    final remainingKeys = data.keys.where((key) {
+    final remainingKeys = _currentData.keys.where((key) {
       return !pairedData.any((pair) => pair['key'] == key) &&
-          data[key] != null &&
-          data[key].toString().trim().isNotEmpty;
+          _currentData[key] != null &&
+          _currentData[key].toString().trim().isNotEmpty;
     }).toList();
 
     return Scaffold(
@@ -1791,6 +1804,28 @@ class DetailPage extends StatelessWidget {
         elevation: 0,
         iconTheme: IconThemeData(color: Theme.of(context).primaryColor),
       ),
+      floatingActionButton: _isAdmin
+          ? FloatingActionButton.extended(
+              onPressed: () async {
+                final result = await Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) =>
+                        EditDataPage(initialData: _currentData),
+                  ),
+                );
+
+                if (result != null && result is Map<String, dynamic>) {
+                  setState(() {
+                    _currentData = result;
+                  });
+                }
+              },
+              icon: const Icon(Icons.edit),
+              label: const Text('Edit Data'),
+              backgroundColor: Theme.of(context).colorScheme.secondary,
+            )
+          : null,
       body: Container(
         decoration: const BoxDecoration(
           gradient: LinearGradient(
@@ -1800,7 +1835,12 @@ class DetailPage extends StatelessWidget {
           ),
         ),
         child: ListView.separated(
-          padding: const EdgeInsets.all(16.0),
+          padding: const EdgeInsets.fromLTRB(
+            16.0,
+            16.0,
+            16.0,
+            80.0,
+          ), // Beri ruang untuk FAB
           itemCount: (pairedData.length / 2).ceil() + remainingKeys.length,
           separatorBuilder: (context, index) => const SizedBox(height: 12),
           itemBuilder: (context, index) {
@@ -1809,20 +1849,17 @@ class DetailPage extends StatelessWidget {
               final secondItemIndex = firstItemIndex + 1;
 
               final item1 = pairedData[firstItemIndex];
-              final value1 = data[item1['key']]?.toString() ?? 'N/A';
+              final value1 = _currentData[item1['key']]?.toString() ?? 'N/A';
 
               if (secondItemIndex < pairedData.length) {
                 final item2 = pairedData[secondItemIndex];
-                final value2 = data[item2['key']]?.toString() ?? 'N/A';
+                final value2 = _currentData[item2['key']]?.toString() ?? 'N/A';
                 return _buildInfoCard(
                   context,
                   label1: item1['label']!,
                   value1: value1,
                   label2: item2['label']!,
                   value2: value2,
-                  isApproved:
-                      value1.toLowerCase() == 'approved' ||
-                      value2.toLowerCase() == 'approved',
                 );
               }
 
@@ -1830,21 +1867,276 @@ class DetailPage extends StatelessWidget {
                 context,
                 label1: item1['label']!,
                 value1: value1,
-                isApproved: value1.toLowerCase() == 'approved',
               );
             }
 
             final remainingIndex = index - (pairedData.length / 2).ceil();
             final key = remainingKeys[remainingIndex];
-            final value = data[key]?.toString() ?? 'N/A';
+            final value = _currentData[key]?.toString() ?? 'N/A';
 
-            return _buildInfoCard(
-              context,
-              label1: key,
-              value1: value,
-              isApproved: value.toLowerCase() == 'approved',
-            );
+            return _buildInfoCard(context, label1: key, value1: value);
           },
+        ),
+      ),
+    );
+  }
+}
+
+// --- [MODIFIKASI] HALAMAN UNTUK EDIT DATA ---
+
+class EditDataPage extends StatefulWidget {
+  final Map<String, dynamic> initialData;
+  const EditDataPage({Key? key, required this.initialData}) : super(key: key);
+
+  @override
+  State<EditDataPage> createState() => _EditDataPageState();
+}
+
+class _EditDataPageState extends State<EditDataPage> {
+  final _formKey = GlobalKey<FormState>();
+  late Map<String, TextEditingController> _controllers;
+  bool _isLoading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _controllers = {};
+    widget.initialData.forEach((key, value) {
+      if (key != 'NO') {
+        _controllers[key] = TextEditingController(
+          text: value?.toString() ?? '',
+        );
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _controllers.forEach((key, controller) {
+      controller.dispose();
+    });
+    super.dispose();
+  }
+
+  Future<void> _saveChanges() async {
+    if (!_formKey.currentState!.validate()) {
+      return;
+    }
+
+    setState(() => _isLoading = true);
+
+    Map<String, dynamic> updatedData = {'NO': widget.initialData['NO']};
+    _controllers.forEach((key, controller) {
+      updatedData[key] = controller.text;
+    });
+
+    try {
+      final response = await http
+          .post(
+            Uri.parse(googleAppScriptUrl),
+            headers: {'Content-Type': 'application/json; charset=UTF-8'},
+            body: json.encode({'action': 'updateData', 'data': updatedData}),
+          )
+          .timeout(const Duration(seconds: 45));
+
+      if (!mounted) return;
+
+      final responseData = json.decode(response.body);
+      if (responseData['status'] == 'success') {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Data berhasil diperbarui!'),
+            backgroundColor: Colors.green,
+          ),
+        );
+        Navigator.of(context).pop(updatedData);
+      } else {
+        throw Exception(responseData['message'] ?? 'Gagal memperbarui data.');
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Terjadi kesalahan: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text('Edit Data #${widget.initialData["NO"]}'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.save),
+            onPressed: _isLoading ? null : _saveChanges,
+            tooltip: 'Simpan Perubahan',
+          ),
+        ],
+      ),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : Form(
+              key: _formKey,
+              child: ListView(
+                padding: const EdgeInsets.all(16.0),
+                children: [
+                  ..._controllers.entries.map((entry) {
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 16.0),
+                      child: TextFormField(
+                        controller: entry.value,
+                        decoration: InputDecoration(
+                          labelText: entry.key,
+                          border: const OutlineInputBorder(),
+                        ),
+                        maxLines: entry.key.contains('URAIAN') ? 3 : 1,
+                      ),
+                    );
+                  }).toList(),
+                  const SizedBox(height: 20),
+                  ElevatedButton(
+                    onPressed: _isLoading ? null : _saveChanges,
+                    style: ElevatedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      backgroundColor: Theme.of(context).colorScheme.secondary,
+                    ),
+                    child: const Text('SIMPAN PERUBAHAN'),
+                  ),
+                ],
+              ),
+            ),
+    );
+  }
+}
+
+class StatCard extends StatelessWidget {
+  final String title, value;
+  final IconData icon;
+  final Color iconColor, iconBgColor;
+
+  const StatCard({
+    Key? key,
+    required this.title,
+    required this.value,
+    required this.icon,
+    required this.iconColor,
+    required this.iconBgColor,
+  }) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(15),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.grey.withOpacity(0.1),
+            spreadRadius: 1,
+            blurRadius: 10,
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: iconBgColor,
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(icon, color: iconColor, size: 20),
+          ),
+          const SizedBox(height: 10),
+          Text(title, style: const TextStyle(color: Colors.grey, fontSize: 14)),
+          const SizedBox(height: 5),
+          Text(
+            value,
+            style: const TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: Color(0xFF1B1D28),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class QuickActionCard extends StatelessWidget {
+  final IconData icon;
+  final Color iconBgColor;
+  final String title, subtitle;
+  final VoidCallback onTap;
+
+  const QuickActionCard({
+    Key? key,
+    required this.icon,
+    required this.iconBgColor,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+  }) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(15),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.grey.withOpacity(0.1),
+              spreadRadius: 1,
+              blurRadius: 10,
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: iconBgColor,
+                borderRadius: BorderRadius.circular(15),
+              ),
+              child: Icon(icon, color: Colors.white, size: 24),
+            ),
+            const SizedBox(width: 15),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  subtitle,
+                  style: const TextStyle(color: Colors.grey, fontSize: 14),
+                ),
+              ],
+            ),
+            const Spacer(),
+            const Icon(Icons.chevron_right, color: Colors.grey, size: 28),
+          ],
         ),
       ),
     );
@@ -2002,24 +2294,36 @@ class _AddFormPageState extends State<AddFormPage> {
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            backgroundColor: Colors.transparent,
+            backgroundColor: Colors.transparent, // biar card terlihat
             elevation: 0,
             behavior: SnackBarBehavior.floating,
             duration: const Duration(seconds: 2),
-            margin: const EdgeInsets.fromLTRB(16, 0, 16, 40),
+            margin: const EdgeInsets.fromLTRB(
+              16,
+              0,
+              16,
+              40,
+            ), // agar mengambang di atas
             content: Card(
-              color: const Color.fromARGB(252, 105, 100, 100),
+              color: const Color.fromARGB(
+                252,
+                105,
+                100,
+                100,
+              ), // abu-abu gelap untuk card
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(16),
               ),
-              elevation: 30,
-              shadowColor: Colors.black.withOpacity(0.6),
+              elevation: 30, // shadow lebih tinggi
+              shadowColor: Colors.black.withOpacity(
+                0.6,
+              ), // warna shadow lebih jelas
               child: const Padding(
                 padding: EdgeInsets.symmetric(horizontal: 24, vertical: 20),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    SuccessAnimation(),
+                    SuccessAnimation(), // animasi sukses
                     SizedBox(height: 16),
                     Text(
                       'Data berhasil ditambahkan!',
@@ -2189,133 +2493,5 @@ class _AddFormPageState extends State<AddFormPage> {
       default:
         return PhosphorIcons.question();
     }
-  }
-}
-
-// --- WIDGET-WIDGET KUSTOM ---
-
-class StatCard extends StatelessWidget {
-  final String title, value;
-  final IconData icon;
-  final Color iconColor, iconBgColor;
-
-  const StatCard({
-    Key? key,
-    required this.title,
-    required this.value,
-    required this.icon,
-    required this.iconColor,
-    required this.iconBgColor,
-  }) : super(key: key);
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(15),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.grey.withOpacity(0.1),
-            spreadRadius: 1,
-            blurRadius: 10,
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: iconBgColor,
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Icon(icon, color: iconColor, size: 20),
-          ),
-          const SizedBox(height: 10),
-          Text(title, style: const TextStyle(color: Colors.grey, fontSize: 14)),
-          const SizedBox(height: 5),
-          Text(
-            value,
-            style: const TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-              color: Color(0xFF1B1D28),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class QuickActionCard extends StatelessWidget {
-  final IconData icon;
-  final Color iconBgColor;
-  final String title, subtitle;
-  final VoidCallback onTap;
-
-  const QuickActionCard({
-    Key? key,
-    required this.icon,
-    required this.iconBgColor,
-    required this.title,
-    required this.subtitle,
-    required this.onTap,
-  }) : super(key: key);
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.all(15),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(20),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.grey.withOpacity(0.1),
-              spreadRadius: 1,
-              blurRadius: 10,
-            ),
-          ],
-        ),
-        child: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: iconBgColor,
-                borderRadius: BorderRadius.circular(15),
-              ),
-              child: Icon(icon, color: Colors.white, size: 24),
-            ),
-            const SizedBox(width: 15),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(height: 3),
-                Text(
-                  subtitle,
-                  style: const TextStyle(color: Colors.grey, fontSize: 14),
-                ),
-              ],
-            ),
-            const Spacer(),
-            const Icon(Icons.chevron_right, color: Colors.grey, size: 28),
-          ],
-        ),
-      ),
-    );
   }
 }
