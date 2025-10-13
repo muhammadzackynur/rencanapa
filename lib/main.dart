@@ -1,5 +1,6 @@
 import 'dart:convert';
-import 'dart:ui';
+import 'dart:io';
+import 'dart:ui' as ui;
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:fl_chart/fl_chart.dart';
@@ -11,11 +12,30 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
 // --- KONFIGURASI ---
-const String apiUrl = "http://192.168.1.54:8000/api";
+const String apiUrl = "http://192.168.1.12:8000/api";
 const String googleAppScriptUrl =
-    "https://script.google.com/macros/s/AKfycbyKInb4bBsCwcg25VdiOIp1ZrNBfIfyMx6eSH12AKH7HFdfs10al69aQYoUn-T2_iT67g/exec";
+    "https://script.google.com/macros/s/AKfycbwgY5dveK0qoWYSzZRad1KC6bTDeHWtAB7YlxJnatztZeCenFfq33dw0oPKuY7dnpQGYA/exec";
 
 final GlobalKey<_MainPageState> mainPageKey = GlobalKey<_MainPageState>();
+
+// --- FUNGSI BARU UNTUK NOTIFIKASI SUKSES MENGAMBANG ---
+void showSuccessOverlay(BuildContext context, String message) {
+  OverlayState? overlayState = Overlay.of(context);
+  OverlayEntry? overlayEntry;
+
+  overlayEntry = OverlayEntry(
+    builder: (context) {
+      return SuccessOverlayAnimation(
+        message: message,
+        onFinish: () {
+          overlayEntry?.remove();
+        },
+      );
+    },
+  );
+
+  overlayState.insert(overlayEntry);
+}
 
 @pragma('vm:entry-point')
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
@@ -102,20 +122,15 @@ class _SuccessAnimationState extends State<SuccessAnimation>
       opacity: _fadeAnimation,
       child: ScaleTransition(
         scale: _scaleAnimation,
-        child: Container(
-          padding: const EdgeInsets.all(18),
-          decoration: BoxDecoration(
-            color: Colors.green.shade600,
-            shape: BoxShape.circle,
-            boxShadow: [
-              BoxShadow(
-                color: Colors.green.withOpacity(0.4),
-                blurRadius: 12,
-                spreadRadius: 2,
-              ),
-            ],
-          ),
-          child: const Icon(Icons.check, size: 36, color: Colors.white),
+        child: Image.asset(
+          'assets/check-19009726-unscreen.gif', // Path ke GIF Anda
+          width: 120,
+          height: 120,
+          errorBuilder: (context, error, stackTrace) {
+            // Jika GIF gagal dimuat, tampilkan icon error merah
+            print("Error loading asset: $error");
+            return const Icon(Icons.error, color: Colors.red, size: 80);
+          },
         ),
       ),
     );
@@ -191,8 +206,8 @@ class CheckmarkPainter extends CustomPainter {
     path.lineTo(size.width * 0.45, size.height * 0.7);
     path.lineTo(size.width * 0.8, size.height * 0.3);
 
-    for (PathMetric pathMetric in path.computeMetrics()) {
-      final Path extractPath = pathMetric.extractPath(
+    for (ui.PathMetric pathMetric in path.computeMetrics()) {
+      final ui.Path extractPath = pathMetric.extractPath(
         0.0,
         pathMetric.length * progress,
       );
@@ -203,6 +218,100 @@ class CheckmarkPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) {
     return true;
+  }
+}
+
+// --- WIDGET BARU UNTUK TAMPILAN OVERLAY ---
+class SuccessOverlayAnimation extends StatefulWidget {
+  final String message;
+  final VoidCallback onFinish;
+
+  const SuccessOverlayAnimation({
+    Key? key,
+    required this.message,
+    required this.onFinish,
+  }) : super(key: key);
+
+  @override
+  State<SuccessOverlayAnimation> createState() =>
+      _SuccessOverlayAnimationState();
+}
+
+class _SuccessOverlayAnimationState extends State<SuccessOverlayAnimation>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<double> _fadeAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 400),
+    );
+    _fadeAnimation = Tween<double>(
+      begin: 0.0,
+      end: 1.0,
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeIn));
+
+    _controller.forward();
+
+    // Tunggu beberapa saat, lalu animasikan keluar dan panggil onFinish
+    Future.delayed(const Duration(seconds: 2), () {
+      if (mounted) {
+        _controller.reverse().then((_) {
+          widget.onFinish();
+        });
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Positioned.fill(
+      child: Container(
+        alignment: Alignment.center,
+        color: Colors.black.withOpacity(0.3),
+        child: FadeTransition(
+          opacity: _fadeAnimation,
+          child: Material(
+            color: Colors.transparent,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+              decoration: BoxDecoration(
+                color: const Color.fromARGB(240, 48, 48, 48),
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.2),
+                    blurRadius: 20,
+                    spreadRadius: 5,
+                  ),
+                ],
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const SuccessAnimation(),
+                  const SizedBox(height: 16),
+                  Text(
+                    widget.message,
+                    style: const TextStyle(color: Colors.white, fontSize: 16),
+                    textAlign: TextAlign.center,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }
 
@@ -265,7 +374,6 @@ class AuthGate extends StatefulWidget {
 class _AuthGateState extends State<AuthGate> {
   Future<bool> _checkLoginStatus() async {
     final prefs = await SharedPreferences.getInstance();
-    // Cek apakah user biasa ATAU admin sudah login
     return (prefs.getBool('isLoggedIn') ?? false) ||
         (prefs.getBool('isAdminLoggedIn') ?? false);
   }
@@ -281,10 +389,8 @@ class _AuthGateState extends State<AuthGate> {
           );
         } else {
           if (snapshot.data == true) {
-            // Jika sudah login, langsung ke halaman utama
             return MainPage(key: mainPageKey);
           } else {
-            // Jika belum, tampilkan halaman pemilihan peran
             return const RoleSelectionPage();
           }
         }
@@ -338,9 +444,7 @@ class RoleSelectionPage extends StatelessWidget {
               width: 250,
               child: ElevatedButton(
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(
-                    0xFF00897B,
-                  ), // Warna berbeda untuk admin
+                  backgroundColor: const Color(0xFF00897B),
                 ),
                 onPressed: () {
                   Navigator.of(context).push(
@@ -544,9 +648,9 @@ class _AdminLoginPageState extends State<AdminLoginPage> {
       setState(() => _isLoading = true);
       try {
         final response = await http.post(
-          Uri.parse("$apiUrl/admin/login"),
+          Uri.parse(googleAppScriptUrl), // Langsung ke GAS
           headers: {'Content-Type': 'application/json; charset=UTF-8'},
-          body: json.encode({'admin_id': _adminId}),
+          body: json.encode({'action': 'adminLogin', 'admin_id': _adminId}),
         );
 
         if (!mounted) return;
@@ -555,6 +659,8 @@ class _AdminLoginPageState extends State<AdminLoginPage> {
         if (responseData['status'] == 'success') {
           final prefs = await SharedPreferences.getInstance();
           await prefs.setBool('isAdminLoggedIn', true);
+          await prefs.setString('adminId', _adminId);
+
           Navigator.of(context).pushReplacement(
             MaterialPageRoute(builder: (context) => MainPage(key: mainPageKey)),
           );
@@ -686,9 +792,10 @@ class _RegistrationPageState extends State<RegistrationPage> {
 
       try {
         final response = await http.post(
-          Uri.parse("$apiUrl/register"),
+          Uri.parse(googleAppScriptUrl), // Langsung ke GAS
           headers: {'Content-Type': 'application/json; charset=UTF-8'},
           body: json.encode({
+            'action': 'register',
             'email': _email,
             'password': _password,
             'fcm_token': fcmToken,
@@ -918,6 +1025,7 @@ class HomePage extends StatelessWidget {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove('isLoggedIn');
     await prefs.remove('isAdminLoggedIn');
+    await prefs.remove('adminId');
     Navigator.of(context).pushReplacement(
       MaterialPageRoute(builder: (context) => const RoleSelectionPage()),
     );
@@ -992,15 +1100,27 @@ class HomePage extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(width: 20),
+                      // --- PERUBAHAN: Mengubah StatCard menjadi tombol ---
                       Expanded(
-                        child: StatCard(
-                          title: 'Recent Digestion',
-                          value: '13.8%',
-                          icon: PhosphorIcons.arrowClockwise(
-                            PhosphorIconsStyle.regular,
+                        child: GestureDetector(
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) =>
+                                    const AllDataPage(startInHistoryView: true),
+                              ),
+                            );
+                          },
+                          child: StatCard(
+                            title: 'Riwayat Edit Saya',
+                            value: 'Lihat Data',
+                            icon: PhosphorIcons.arrowClockwise(
+                              PhosphorIconsStyle.regular,
+                            ),
+                            iconColor: Colors.white,
+                            iconBgColor: const Color(0xFFF2994A),
                           ),
-                          iconColor: Colors.white,
-                          iconBgColor: const Color(0xFFF2994A),
                         ),
                       ),
                     ],
@@ -1253,7 +1373,9 @@ class _RecentActivitiesPageState extends State<RecentActivitiesPage> {
 }
 
 class AllDataPage extends StatefulWidget {
-  const AllDataPage({super.key});
+  final bool startInHistoryView;
+
+  const AllDataPage({super.key, this.startInHistoryView = false});
 
   @override
   State<AllDataPage> createState() => _AllDataPageState();
@@ -1264,64 +1386,70 @@ class _AllDataPageState extends State<AllDataPage> {
   List<dynamic> _allData = [];
   List<dynamic> _filteredData = [];
   String? _error;
-  String? _selectedSTO;
-  List<String> _stoOptions = [];
+
+  bool _isHistoryView = false;
+  String? _currentAdminId;
 
   final TextEditingController _searchController = TextEditingController();
-  // ============== KODE BARU UNTUK FITUR SCROLL ==============
   final ScrollController _scrollController = ScrollController();
   bool _showScrollButtons = false;
-  // ==========================================================
 
   @override
   void initState() {
     super.initState();
+    _isHistoryView = widget.startInHistoryView;
+
+    _loadAdminId();
     _fetchAllData();
     _searchController.addListener(() {
       _runFilter();
     });
 
-    // ============== LISTENER BARU UNTUK TOMBOL SCROLL ==============
     _scrollController.addListener(() {
-      // Tampilkan tombol jika user scroll lebih dari 300 pixel ke bawah
       if (_scrollController.offset > 300 && !_showScrollButtons) {
         setState(() {
           _showScrollButtons = true;
         });
-      }
-      // Sembunyikan jika kembali ke atas
-      else if (_scrollController.offset <= 300 && _showScrollButtons) {
+      } else if (_scrollController.offset <= 300 && _showScrollButtons) {
         setState(() {
           _showScrollButtons = false;
         });
       }
     });
-    // =============================================================
   }
 
   @override
   void dispose() {
     _searchController.dispose();
-    _scrollController.dispose(); // <-- Jangan lupa dispose controller
+    _scrollController.dispose();
     super.dispose();
   }
 
+  Future<void> _loadAdminId() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (mounted) {
+      setState(() {
+        _currentAdminId = prefs.getString('adminId');
+      });
+    }
+  }
+
   Future<void> _fetchAllData() async {
+    if (!mounted) return;
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
+
     try {
       final uri = Uri.parse("$googleAppScriptUrl?action=getAll");
       final response = await http.get(uri).timeout(const Duration(seconds: 60));
       if (response.statusCode == 200) {
         final result = json.decode(response.body);
         if (result['status'] == 'success') {
+          if (!mounted) return;
           setState(() {
             _allData = result['data'];
-            _stoOptions = _allData
-                .map((item) => item['STO']?.toString())
-                .whereType<String>()
-                .toSet()
-                .toList();
-            _stoOptions.sort();
-            _isLoading = false;
           });
           _runFilter();
         } else {
@@ -1331,26 +1459,28 @@ class _AllDataPageState extends State<AllDataPage> {
         throw Exception('Gagal memuat data dari server');
       }
     } catch (e) {
+      if (!mounted) return;
       setState(() {
         _error = e.toString();
+      });
+    } finally {
+      if (!mounted) return;
+      setState(() {
         _isLoading = false;
       });
     }
   }
 
-  void _filterBySTO(String? sto) {
-    setState(() {
-      _selectedSTO = sto;
-    });
-    _runFilter();
-  }
-
   void _runFilter() {
-    List<dynamic> results = _allData;
+    List<dynamic> results = List.from(_allData);
     final query = _searchController.text.toLowerCase();
 
-    if (_selectedSTO != null && _selectedSTO != 'Semua') {
-      results = results.where((item) => item['STO'] == _selectedSTO).toList();
+    if (_isHistoryView &&
+        _currentAdminId != null &&
+        _currentAdminId!.isNotEmpty) {
+      results = results
+          .where((item) => item['USER']?.toString() == _currentAdminId)
+          .toList();
     }
 
     if (query.isNotEmpty) {
@@ -1361,11 +1491,13 @@ class _AllDataPageState extends State<AllDataPage> {
         final kategori =
             item['KATEGORI KEGIATAN']?.toString().toLowerCase() ?? '';
         final sto = item['STO']?.toString().toLowerCase() ?? '';
+        final user = item['USER']?.toString().toLowerCase() ?? '';
 
         return tiket.contains(query) ||
             uraian.contains(query) ||
             idHld.contains(query) ||
             kategori.contains(query) ||
+            user.contains(query) ||
             sto.contains(query);
       }).toList();
     }
@@ -1393,7 +1525,6 @@ class _AllDataPageState extends State<AllDataPage> {
     }
   }
 
-  // ============== FUNGSI BARU UNTUK SCROLL ==============
   void _scrollToTop() {
     _scrollController.animateTo(
       0,
@@ -1409,44 +1540,31 @@ class _AllDataPageState extends State<AllDataPage> {
       curve: Curves.easeInOut,
     );
   }
-  // =====================================================
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Semua Data Usulan'),
+        title: Text(_isHistoryView ? 'Riwayat Saya' : 'Semua Data Usulan'),
         actions: [
-          if (!_isLoading && _error == null)
-            Padding(
-              padding: const EdgeInsets.only(right: 8.0),
-              child: DropdownButtonHideUnderline(
-                child: DropdownButton<String>(
-                  value: _selectedSTO,
-                  icon: Icon(
-                    PhosphorIcons.funnel(),
-                    color: Theme.of(context).primaryColor,
-                  ),
-                  hint: const Text('Filter STO'),
-                  items: [
-                    const DropdownMenuItem(
-                      value: 'Semua',
-                      child: Text('Tampilkan Semua'),
-                    ),
-                    ..._stoOptions.map((String value) {
-                      return DropdownMenuItem<String>(
-                        value: value,
-                        child: Text(value),
-                      );
-                    }).toList(),
-                  ],
-                  onChanged: _filterBySTO,
-                ),
+          if (_currentAdminId != null)
+            IconButton(
+              icon: Icon(
+                PhosphorIcons.clockCounterClockwise(),
+                color: _isHistoryView
+                    ? Theme.of(context).primaryColor
+                    : Colors.grey,
               ),
+              onPressed: () {
+                setState(() {
+                  _isHistoryView = !_isHistoryView;
+                });
+                _runFilter();
+              },
+              tooltip: 'Tampilkan Riwayat Saya',
             ),
         ],
       ),
-      // ============== PERUBAHAN: BODY DIBUNGKUS STACK ==============
       body: Stack(
         children: [
           Column(
@@ -1456,7 +1574,7 @@ class _AllDataPageState extends State<AllDataPage> {
                 child: TextField(
                   controller: _searchController,
                   decoration: InputDecoration(
-                    hintText: 'Cari (No. Tiket, Uraian, Kategori, dll)',
+                    hintText: 'Cari (No. Tiket, Uraian, User, dll)',
                     prefixIcon: Icon(PhosphorIcons.magnifyingGlass()),
                     contentPadding: const EdgeInsets.symmetric(vertical: 10),
                     fillColor: Colors.white,
@@ -1471,7 +1589,6 @@ class _AllDataPageState extends State<AllDataPage> {
               Expanded(child: _buildGridBody()),
             ],
           ),
-          // ============== WIDGET BARU UNTUK TOMBOL SCROLL ==============
           Positioned(
             bottom: 16,
             right: 16,
@@ -1496,7 +1613,6 @@ class _AllDataPageState extends State<AllDataPage> {
               ),
             ),
           ),
-          // =============================================================
         ],
       ),
     );
@@ -1510,171 +1626,192 @@ class _AllDataPageState extends State<AllDataPage> {
       return Center(
         child: Padding(
           padding: const EdgeInsets.all(16.0),
-          child: Text('Terjadi error: $_error'),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text('Terjadi error: $_error'),
+              const SizedBox(height: 10),
+              ElevatedButton(
+                onPressed: _fetchAllData,
+                child: const Text('Coba Lagi'),
+              ),
+            ],
+          ),
         ),
       );
     }
     if (_filteredData.isEmpty) {
-      return const Center(child: Text('Data tidak ditemukan.'));
+      return Center(
+        child: Text(
+          _isHistoryView
+              ? 'Anda belum memiliki riwayat.'
+              : 'Data tidak ditemukan.',
+        ),
+      );
     }
 
-    return GridView.builder(
-      // ============== CONTROLLER DIPASANG DI SINI ==============
-      controller: _scrollController,
-      // =========================================================
-      padding: const EdgeInsets.all(12.0),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2,
-        crossAxisSpacing: 12,
-        mainAxisSpacing: 12,
-        childAspectRatio: (2 / 2.8),
-      ),
-      itemCount: _filteredData.length,
-      itemBuilder: (context, index) {
-        final item = _filteredData[index];
-        final no = item['NO']?.toString() ?? '-';
-        final sto = item['STO']?.toString() ?? 'N/A';
-        final String mainUraian =
-            item['URAIAN PEKERJAAN']?.toString() ?? 'Tidak ada uraian';
-        final String? kategori = item['KATEGORI KEGIATAN']?.toString();
-        final String? status = item['STATUS']?.toString();
+    return RefreshIndicator(
+      onRefresh: _fetchAllData,
+      child: GridView.builder(
+        controller: _scrollController,
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.all(12.0),
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 2,
+          crossAxisSpacing: 12,
+          mainAxisSpacing: 12,
+          childAspectRatio: (2 / 2.8),
+        ),
+        itemCount: _filteredData.length,
+        itemBuilder: (context, index) {
+          final item = _filteredData[index];
+          final no = item['NO']?.toString() ?? '-';
+          final sto = item['STO']?.toString() ?? 'N/A';
+          final String mainUraian =
+              item['URAIAN PEKERJAAN']?.toString() ?? 'Tidak ada uraian';
+          final String? kategori = item['KATEGORI KEGIATAN']?.toString();
+          final String? status = item['STATUS']?.toString();
 
-        return GestureDetector(
-          onTap: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(builder: (context) => DetailPage(data: item)),
-            );
-          },
-          child: Card(
-            clipBehavior: Clip.antiAlias,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
-            elevation: 3,
-            shadowColor: Colors.black.withOpacity(0.1),
-            child: Stack(
-              children: [
-                Padding(
-                  padding: const EdgeInsets.all(12.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 8,
-                              vertical: 5,
-                            ),
-                            constraints: const BoxConstraints(minWidth: 32),
-                            decoration: BoxDecoration(
-                              color: Theme.of(
-                                context,
-                              ).primaryColor.withOpacity(0.15),
-                              borderRadius: BorderRadius.circular(20),
-                            ),
-                            alignment: Alignment.center,
-                            child: Text(
-                              no,
-                              style: TextStyle(
-                                fontWeight: FontWeight.bold,
-                                color: Theme.of(context).primaryColor,
-                                fontSize: 14,
+          return GestureDetector(
+            onTap: () async {
+              final result = await Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => DetailPage(data: item)),
+              );
+              if (result == true) {
+                _fetchAllData();
+              }
+            },
+            child: Card(
+              clipBehavior: Clip.antiAlias,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              elevation: 3,
+              shadowColor: Colors.black.withOpacity(0.1),
+              child: Stack(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.all(12.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 5,
                               ),
-                              textAlign: TextAlign.center,
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  "STO: $sto",
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 13,
-                                  ),
+                              constraints: const BoxConstraints(minWidth: 32),
+                              decoration: BoxDecoration(
+                                color: Theme.of(
+                                  context,
+                                ).primaryColor.withOpacity(0.15),
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              alignment: Alignment.center,
+                              child: Text(
+                                no,
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  color: Theme.of(context).primaryColor,
+                                  fontSize: 14,
                                 ),
-                              ],
+                                textAlign: TextAlign.center,
+                              ),
                             ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        mainUraian,
-                        style: const TextStyle(
-                          fontSize: 12,
-                          color: Colors.black54,
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    "STO: $sto",
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 13,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
                         ),
-                        maxLines: 4,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      const Spacer(),
-                      if (kategori != null && kategori.isNotEmpty)
-                        Align(
-                          alignment: Alignment.bottomLeft,
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 8,
-                              vertical: 3,
-                            ),
-                            decoration: BoxDecoration(
-                              color: Colors.teal.withOpacity(0.1),
-                              borderRadius: BorderRadius.circular(4),
-                            ),
-                            child: Text(
-                              kategori.toUpperCase(),
-                              style: const TextStyle(
-                                color: Colors.teal,
-                                fontSize: 9,
-                                fontWeight: FontWeight.bold,
+                        const SizedBox(height: 8),
+                        Text(
+                          mainUraian,
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: Colors.black54,
+                          ),
+                          maxLines: 4,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const Spacer(),
+                        if (kategori != null && kategori.isNotEmpty)
+                          Align(
+                            alignment: Alignment.bottomLeft,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 3,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Colors.teal.withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: Text(
+                                kategori.toUpperCase(),
+                                style: const TextStyle(
+                                  color: Colors.teal,
+                                  fontSize: 9,
+                                  fontWeight: FontWeight.bold,
+                                ),
                               ),
                             ),
                           ),
-                        ),
-                    ],
+                      ],
+                    ),
                   ),
-                ),
-                if (status != null && status.isNotEmpty)
-                  Positioned(
-                    top: 0,
-                    right: 0,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 4,
-                      ),
-                      decoration: BoxDecoration(
-                        color: _getStatusColor(status),
-                        borderRadius: const BorderRadius.only(
-                          topRight: Radius.circular(12),
-                          bottomLeft: Radius.circular(12),
+                  if (status != null && status.isNotEmpty)
+                    Positioned(
+                      top: 0,
+                      right: 0,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 4,
                         ),
-                      ),
-                      child: Text(
-                        status.toUpperCase(),
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 8,
-                          fontWeight: FontWeight.bold,
+                        decoration: BoxDecoration(
+                          color: _getStatusColor(status),
+                          borderRadius: const BorderRadius.only(
+                            topRight: Radius.circular(12),
+                            bottomLeft: Radius.circular(12),
+                          ),
+                        ),
+                        child: Text(
+                          status.toUpperCase(),
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 8,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
                       ),
                     ),
-                  ),
-              ],
+                ],
+              ),
             ),
-          ),
-        );
-      },
+          );
+        },
+      ),
     );
   }
 }
 
-// --- [MODIFIKASI] HALAMAN DETAIL MENJADI STATEFUL WIDGET ---
+// --- HALAMAN DETAIL ---
 
 class DetailPage extends StatefulWidget {
   final Map<String, dynamic> data;
@@ -1688,11 +1825,12 @@ class DetailPage extends StatefulWidget {
 class _DetailPageState extends State<DetailPage> {
   bool _isAdmin = false;
   late Map<String, dynamic> _currentData;
+  bool _dataHasChanged = false;
 
   @override
   void initState() {
     super.initState();
-    _currentData = widget.data;
+    _currentData = Map<String, dynamic>.from(widget.data);
     _checkAdminStatus();
   }
 
@@ -1707,8 +1845,6 @@ class _DetailPageState extends State<DetailPage> {
     BuildContext context, {
     required String label1,
     required String value1,
-    String? label2,
-    String? value2,
   }) {
     return Card(
       elevation: 2,
@@ -1716,60 +1852,26 @@ class _DetailPageState extends State<DetailPage> {
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: Padding(
         padding: const EdgeInsets.all(16.0),
-        child: Row(
+        child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    label1.toUpperCase(),
-                    style: TextStyle(
-                      color: Colors.grey[600],
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    value1,
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: Color(0xFF1B1D28),
-                    ),
-                  ),
-                ],
+            Text(
+              label1.toUpperCase(),
+              style: TextStyle(
+                color: Colors.grey[600],
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
               ),
             ),
-            if (label2 != null && value2 != null) ...[
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      label2.toUpperCase(),
-                      style: TextStyle(
-                        color: Colors.grey[600],
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      value2,
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: Color(0xFF1B1D28),
-                      ),
-                    ),
-                  ],
-                ),
+            const SizedBox(height: 4),
+            Text(
+              value1,
+              style: const TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+                color: Color(0xFF1B1D28),
               ),
-            ],
+            ),
           ],
         ),
       ),
@@ -1778,111 +1880,74 @@ class _DetailPageState extends State<DetailPage> {
 
   @override
   Widget build(BuildContext context) {
-    final List<Map<String, String>> pairedData = [
-      {'label': 'NOMOR TIKET', 'key': 'NOMOR TIKET/SC'},
-      {'label': 'STATUS', 'key': 'STATUS'},
-      {'label': 'JENIS TIKET', 'key': 'JENIS TIKET'},
-      {'label': 'TANGGAL', 'key': 'TANGGAL'},
-      {'label': 'NAMA PENGAUSUL', 'key': 'NAMA PENGAUSUL'},
-      {'label': 'ID', 'key': 'ID'},
-      {'label': 'APPROVAL ED', 'key': 'APPROVAL ED'},
-      {'label': 'DISTRICT', 'key': 'DISTRICT'},
-      {'label': 'AREA', 'key': 'AREA'},
-      {'label': 'ID/HLD', 'key': 'ID/HLD'},
-    ];
-
-    final remainingKeys = _currentData.keys.where((key) {
-      return !pairedData.any((pair) => pair['key'] == key) &&
-          _currentData[key] != null &&
-          _currentData[key].toString().trim().isNotEmpty;
-    }).toList();
-
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Detail Data'),
-        backgroundColor: const Color(0xFFF0F8F7),
-        elevation: 0,
-        iconTheme: IconThemeData(color: Theme.of(context).primaryColor),
-      ),
-      floatingActionButton: _isAdmin
-          ? FloatingActionButton.extended(
-              onPressed: () async {
-                final result = await Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) =>
-                        EditDataPage(initialData: _currentData),
-                  ),
-                );
-
-                if (result != null && result is Map<String, dynamic>) {
-                  setState(() {
-                    _currentData = result;
-                  });
-                }
-              },
-              icon: const Icon(Icons.edit),
-              label: const Text('Edit Data'),
-              backgroundColor: Theme.of(context).colorScheme.secondary,
-            )
-          : null,
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [Color(0xFFF0F8F7), Colors.white],
+    return WillPopScope(
+      onWillPop: () async {
+        Navigator.pop(context, _dataHasChanged);
+        return false;
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('Detail Data'),
+          backgroundColor: const Color(0xFFF0F8F7),
+          elevation: 0,
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back),
+            onPressed: () {
+              Navigator.pop(context, _dataHasChanged);
+            },
           ),
+          iconTheme: IconThemeData(color: Theme.of(context).primaryColor),
         ),
-        child: ListView.separated(
-          padding: const EdgeInsets.fromLTRB(
-            16.0,
-            16.0,
-            16.0,
-            80.0,
-          ), // Beri ruang untuk FAB
-          itemCount: (pairedData.length / 2).ceil() + remainingKeys.length,
-          separatorBuilder: (context, index) => const SizedBox(height: 12),
-          itemBuilder: (context, index) {
-            if (index < (pairedData.length / 2).ceil()) {
-              final firstItemIndex = index * 2;
-              final secondItemIndex = firstItemIndex + 1;
+        floatingActionButton: _isAdmin
+            ? FloatingActionButton.extended(
+                onPressed: () async {
+                  final result = await Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) =>
+                          EditDataPage(initialData: _currentData),
+                    ),
+                  );
 
-              final item1 = pairedData[firstItemIndex];
-              final value1 = _currentData[item1['key']]?.toString() ?? 'N/A';
-
-              if (secondItemIndex < pairedData.length) {
-                final item2 = pairedData[secondItemIndex];
-                final value2 = _currentData[item2['key']]?.toString() ?? 'N/A';
-                return _buildInfoCard(
-                  context,
-                  label1: item1['label']!,
-                  value1: value1,
-                  label2: item2['label']!,
-                  value2: value2,
-                );
-              }
-
-              return _buildInfoCard(
-                context,
-                label1: item1['label']!,
-                value1: value1,
+                  if (result != null && result is Map<String, dynamic>) {
+                    setState(() {
+                      _currentData = result;
+                      _dataHasChanged = true;
+                    });
+                  }
+                },
+                icon: const Icon(Icons.edit),
+                label: const Text('Edit Data'),
+                backgroundColor: Theme.of(context).colorScheme.secondary,
+              )
+            : null,
+        body: Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [Color(0xFFF0F8F7), Colors.white],
+            ),
+          ),
+          child: ListView(
+            padding: const EdgeInsets.fromLTRB(16.0, 16.0, 16.0, 80.0),
+            children: _currentData.entries.map((entry) {
+              final key = entry.key;
+              final value = entry.value?.toString() ?? 'N/A';
+              if (value.isEmpty || key == 'NO') return const SizedBox.shrink();
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 12.0),
+                child: _buildInfoCard(context, label1: key, value1: value),
               );
-            }
-
-            final remainingIndex = index - (pairedData.length / 2).ceil();
-            final key = remainingKeys[remainingIndex];
-            final value = _currentData[key]?.toString() ?? 'N/A';
-
-            return _buildInfoCard(context, label1: key, value1: value);
-          },
+            }).toList(),
+          ),
         ),
       ),
     );
   }
 }
 
-// --- [MODIFIKASI] HALAMAN UNTUK EDIT DATA ---
+// --- HALAMAN UNTUK EDIT DATA ---
 
 class EditDataPage extends StatefulWidget {
   final Map<String, dynamic> initialData;
@@ -1897,17 +1962,44 @@ class _EditDataPageState extends State<EditDataPage> {
   late Map<String, TextEditingController> _controllers;
   bool _isLoading = false;
 
+  late Map<String, dynamic> _editableData;
+
+  final List<String> _statusPekerjaanOptions = [
+    'Waiting List',
+    'Order Eksekusi',
+    'Cancel',
+    'Sudah Dikerjakan',
+  ];
+  final List<String> _approvalOptions = ['Approved', 'Cancle', 'Pengajuan'];
+  final List<String> _wbsOptions = ['Qe Access', 'Qe Recovery', 'Qe Relokasi'];
+
+  // Opsi untuk Autocomplete Kategori
+  final List<String> _kategoriKegiatanOptions = ['CANCEL', 'REKON', 'USULAN'];
+
   @override
   void initState() {
     super.initState();
+    _editableData = Map<String, dynamic>.from(widget.initialData);
     _controllers = {};
-    widget.initialData.forEach((key, value) {
-      if (key != 'NO') {
+
+    _editableData.forEach((key, value) {
+      if (key != 'NO' &&
+          key != 'STATUS PEKERJAAN' &&
+          key != 'APPROVAL RAM' &&
+          key != 'APPROVAL ED' &&
+          key != 'WBS' &&
+          key != 'KATEGORI KEGIATAN') {
+        // Tambahkan KATEGORI KEGIATAN
         _controllers[key] = TextEditingController(
           text: value?.toString() ?? '',
         );
       }
     });
+
+    // Inisialisasi controller terpisah untuk Autocomplete
+    _controllers['KATEGORI KEGIATAN'] = TextEditingController(
+      text: _editableData['KATEGORI KEGIATAN']?.toString() ?? '',
+    );
   }
 
   @override
@@ -1922,46 +2014,93 @@ class _EditDataPageState extends State<EditDataPage> {
     if (!_formKey.currentState!.validate()) {
       return;
     }
-
     setState(() => _isLoading = true);
 
-    Map<String, dynamic> updatedData = {'NO': widget.initialData['NO']};
+    final prefs = await SharedPreferences.getInstance();
+    final adminId = prefs.getString('adminId');
+
     _controllers.forEach((key, controller) {
-      updatedData[key] = controller.text;
+      _editableData[key] = controller.text;
     });
 
+    _editableData['USER'] = adminId;
+
+    final requestBody = json.encode({
+      'action': 'updateData',
+      'data': _editableData,
+    });
+
+    var client = http.Client();
     try {
-      final response = await http
-          .post(
-            Uri.parse(googleAppScriptUrl),
-            headers: {'Content-Type': 'application/json; charset=UTF-8'},
-            body: json.encode({'action': 'updateData', 'data': updatedData}),
-          )
+      var request = http.Request('POST', Uri.parse(googleAppScriptUrl))
+        ..followRedirects = false
+        ..headers['Content-Type'] = 'application/json; charset=UTF-8'
+        ..body = requestBody;
+
+      final streamedResponse = await client
+          .send(request)
           .timeout(const Duration(seconds: 45));
 
-      if (!mounted) return;
+      if (streamedResponse.statusCode >= 300 &&
+          streamedResponse.statusCode < 400) {
+        final newLocation = streamedResponse.headers['location'];
+        if (newLocation == null) {
+          throw Exception(
+            "Server melakukan redirect tetapi tidak memberikan lokasi baru.",
+          );
+        }
 
-      final responseData = json.decode(response.body);
-      if (responseData['status'] == 'success') {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Data berhasil diperbarui!'),
-            backgroundColor: Colors.green,
-          ),
-        );
-        Navigator.of(context).pop(updatedData);
+        print('[LOG] Redirecting to: $newLocation');
+
+        final secondResponse = await client.get(Uri.parse(newLocation));
+
+        if (secondResponse.statusCode == 200) {
+          final responseData = json.decode(secondResponse.body);
+          if (responseData['status'] == 'success') {
+            if (!mounted) return;
+            showSuccessOverlay(context, 'Data berhasil diperbarui!');
+            Future.delayed(const Duration(milliseconds: 2500), () {
+              if (mounted) {
+                Navigator.of(context).pop(_editableData);
+              }
+            });
+          } else {
+            throw Exception(
+              responseData['message'] ??
+                  'Gagal memperbarui data setelah redirect.',
+            );
+          }
+        } else {
+          throw Exception(
+            'Gagal mengambil data dari URL redirect. Status: ${secondResponse.statusCode}',
+          );
+        }
+      } else if (streamedResponse.statusCode == 200) {
+        final response = await http.Response.fromStream(streamedResponse);
+        final responseData = json.decode(response.body);
+        if (responseData['status'] == 'success') {
+          if (!mounted) return;
+          showSuccessOverlay(context, 'Data berhasil diperbarui!');
+          Future.delayed(const Duration(milliseconds: 2500), () {
+            if (mounted) {
+              Navigator.of(context).pop(_editableData);
+            }
+          });
+        } else {
+          throw Exception(responseData['message'] ?? 'Gagal memperbarui data.');
+        }
       } else {
-        throw Exception(responseData['message'] ?? 'Gagal memperbarui data.');
+        throw Exception(
+          'Gagal menghubungi server. Status: ${streamedResponse.statusCode}',
+        );
       }
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Terjadi kesalahan: $e'),
-          backgroundColor: Colors.red,
-        ),
+        SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
       );
     } finally {
+      client.close();
       if (mounted) {
         setState(() => _isLoading = false);
       }
@@ -1988,18 +2127,73 @@ class _EditDataPageState extends State<EditDataPage> {
               child: ListView(
                 padding: const EdgeInsets.all(16.0),
                 children: [
-                  ..._controllers.entries.map((entry) {
-                    return Padding(
-                      padding: const EdgeInsets.only(bottom: 16.0),
-                      child: TextFormField(
-                        controller: entry.value,
-                        decoration: InputDecoration(
-                          labelText: entry.key,
-                          border: const OutlineInputBorder(),
+                  ..._editableData.entries.map((entry) {
+                    if (entry.key == 'NO' || entry.key == 'USER') {
+                      return const SizedBox.shrink();
+                    }
+                    // ... (kode dropdown STATUS PEKERJAAN, WBS, APPROVAL tetap sama)
+                    else if (entry.key == 'KATEGORI KEGIATAN') {
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 16.0),
+                        child: Autocomplete<String>(
+                          optionsBuilder: (TextEditingValue textEditingValue) {
+                            if (textEditingValue.text == '') {
+                              return const Iterable<String>.empty();
+                            }
+                            return _kategoriKegiatanOptions.where((
+                              String option,
+                            ) {
+                              return option.toLowerCase().contains(
+                                textEditingValue.text.toLowerCase(),
+                              );
+                            });
+                          },
+                          onSelected: (String selection) {
+                            setState(() {
+                              _editableData['KATEGORI KEGIATAN'] = selection;
+                              _controllers['KATEGORI KEGIATAN']!.text =
+                                  selection;
+                            });
+                          },
+                          fieldViewBuilder:
+                              (
+                                BuildContext context,
+                                TextEditingController fieldController,
+                                FocusNode fieldFocusNode,
+                                VoidCallback onFieldSubmitted,
+                              ) {
+                                // Sync controller
+                                fieldController.text =
+                                    _controllers['KATEGORI KEGIATAN']!.text;
+                                return TextFormField(
+                                  controller: fieldController,
+                                  focusNode: fieldFocusNode,
+                                  decoration: const InputDecoration(
+                                    labelText: 'KATEGORI KEGIATAN',
+                                    border: OutlineInputBorder(),
+                                  ),
+                                  onChanged: (value) {
+                                    _editableData['KATEGORI KEGIATAN'] = value;
+                                  },
+                                );
+                              },
                         ),
-                        maxLines: entry.key.contains('URAIAN') ? 3 : 1,
-                      ),
-                    );
+                      );
+                    } else if (_controllers.containsKey(entry.key)) {
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 16.0),
+                        child: TextFormField(
+                          controller: _controllers[entry.key],
+                          decoration: InputDecoration(
+                            labelText: entry.key,
+                            border: const OutlineInputBorder(),
+                          ),
+                          maxLines: entry.key.contains('URAIAN') ? 3 : 1,
+                        ),
+                      );
+                    } else {
+                      return const SizedBox.shrink();
+                    }
                   }).toList(),
                   const SizedBox(height: 20),
                   ElevatedButton(
@@ -2194,25 +2388,10 @@ class _AddFormPageState extends State<AddFormPage> {
     "TIKET INFRACARE",
     "TIKET GANGGUAN/SQM",
   ];
-  final kategoriKegiatanOptions = [
-    "PENGAWALAN",
-    "GAMAS",
-    "TIANG KEROPOS",
-    "BENJAR",
-    "MH RUSAK",
-    "TERJUNTAI",
-    "PENEGAKAN ODC",
-    "GANTI ODP",
-    "PENINGGIAN KU",
-    "RELOKASI ALPRO",
-    "TAMBAH TIANG",
-    "PSB",
-    "TIANG PATAH",
-    "PERMANENISASI",
-    "TUTUP MH",
-    "PEMBONGKARAN ALPRO",
-    "DUAL HOMING",
-  ];
+
+  // --- PERUBAHAN: Opsi baru untuk kategori ---
+  final List<String> kategoriKegiatanOptions = ['CANCEL', 'REKON', 'USULAN'];
+
   final mitraPelaksanaOptions = [
     "PT. Cipta Akses Indotama",
     "PT. Bangtelindo",
@@ -2224,50 +2403,15 @@ class _AddFormPageState extends State<AddFormPage> {
   ];
   bool _isLoading = false;
 
-  void _showSuccessDialog() {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (BuildContext context) {
-        return Dialog(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
-          ),
-          child: Container(
-            width: 200,
-            padding: const EdgeInsets.all(20.0),
-            child: const Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                SuccessCheckmarkAnimation(size: 80.0),
-                SizedBox(height: 16),
-                Text(
-                  'Data Sudah Ditambah!',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                  textAlign: TextAlign.center,
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-
-    Future.delayed(const Duration(seconds: 3), () {
-      if (mounted) {
-        Navigator.of(context, rootNavigator: true).pop();
-        mainPageKey.currentState?.changePage(0);
-        _formKey.currentState?.reset();
-        setState(() {
-          _formData.clear();
-        });
-      }
-    });
-  }
-
   Future<void> _submitForm() async {
     if (_formKey.currentState?.validate() ?? false) {
+      _formKey.currentState!.save(); // Simpan semua nilai dari form
       setState(() => _isLoading = true);
+
+      final prefs = await SharedPreferences.getInstance();
+      final adminId = prefs.getString('adminId');
+      _formData['USER'] = adminId;
+
       try {
         final response = await http
             .post(
@@ -2281,7 +2425,15 @@ class _AddFormPageState extends State<AddFormPage> {
 
         final responseData = json.decode(response.body);
         if (responseData['status'] == 'success') {
-          _showSuccessDialog();
+          showSuccessOverlay(context, 'Data berhasil ditambahkan!');
+
+          Future.delayed(const Duration(milliseconds: 2500), () {
+            if (mounted) {
+              _formKey.currentState?.reset();
+              setState(() => _formData.clear());
+              mainPageKey.currentState?.changePage(0);
+            }
+          });
         } else {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
@@ -2294,45 +2446,8 @@ class _AddFormPageState extends State<AddFormPage> {
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            backgroundColor: Colors.transparent, // biar card terlihat
-            elevation: 0,
-            behavior: SnackBarBehavior.floating,
-            duration: const Duration(seconds: 2),
-            margin: const EdgeInsets.fromLTRB(
-              16,
-              0,
-              16,
-              40,
-            ), // agar mengambang di atas
-            content: Card(
-              color: const Color.fromARGB(
-                252,
-                105,
-                100,
-                100,
-              ), // abu-abu gelap untuk card
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
-              ),
-              elevation: 30, // shadow lebih tinggi
-              shadowColor: Colors.black.withOpacity(
-                0.6,
-              ), // warna shadow lebih jelas
-              child: const Padding(
-                padding: EdgeInsets.symmetric(horizontal: 24, vertical: 20),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    SuccessAnimation(), // animasi sukses
-                    SizedBox(height: 16),
-                    Text(
-                      'Data berhasil ditambahkan!',
-                      style: TextStyle(color: Colors.white, fontSize: 16),
-                    ),
-                  ],
-                ),
-              ),
-            ),
+            content: Text('Terjadi kesalahan: $e'),
+            backgroundColor: Colors.red,
           ),
         );
       } finally {
@@ -2381,7 +2496,7 @@ class _AddFormPageState extends State<AddFormPage> {
                           ),
                           validator: (v) =>
                               (v == null || v.isEmpty) ? 'Wajib diisi' : null,
-                          onChanged: (v) => _formData['NOMOR TIKET/SC'] = v,
+                          onSaved: (v) => _formData['NOMOR TIKET/SC'] = v,
                         ),
                       ],
                     ),
@@ -2397,13 +2512,51 @@ class _AddFormPageState extends State<AddFormPage> {
                           ),
                           validator: (v) =>
                               (v == null || v.isEmpty) ? 'Wajib diisi' : null,
-                          onChanged: (v) => _formData['URAIAN PEKERJAAN'] = v,
+                          onSaved: (v) => _formData['URAIAN PEKERJAAN'] = v,
                           maxLines: 3,
                         ),
                         const SizedBox(height: 16),
-                        _buildDropdown(
-                          "KATEGORI KEGIATAN",
-                          kategoriKegiatanOptions,
+                        // --- PERUBAHAN: Gunakan Autocomplete untuk Kategori ---
+                        Autocomplete<String>(
+                          optionsBuilder: (TextEditingValue textEditingValue) {
+                            if (textEditingValue.text == '') {
+                              return const Iterable<String>.empty();
+                            }
+                            return kategoriKegiatanOptions.where((
+                              String option,
+                            ) {
+                              return option.toLowerCase().contains(
+                                textEditingValue.text.toLowerCase(),
+                              );
+                            });
+                          },
+                          onSelected: (String selection) {
+                            _formData['KATEGORI KEGIATAN'] = selection;
+                          },
+                          fieldViewBuilder:
+                              (
+                                BuildContext context,
+                                TextEditingController fieldController,
+                                FocusNode fieldFocusNode,
+                                VoidCallback onFieldSubmitted,
+                              ) {
+                                return TextFormField(
+                                  controller: fieldController,
+                                  focusNode: fieldFocusNode,
+                                  decoration: InputDecoration(
+                                    labelText: 'KATEGORI KEGIATAN',
+                                    prefixIcon: Icon(
+                                      _getIconForField('KATEGORI KEGIATAN'),
+                                    ),
+                                  ),
+                                  validator: (v) => (v == null || v.isEmpty)
+                                      ? 'Wajib diisi'
+                                      : null,
+                                  onSaved: (value) {
+                                    _formData['KATEGORI KEGIATAN'] = value;
+                                  },
+                                );
+                              },
                         ),
                       ],
                     ),
@@ -2476,7 +2629,7 @@ class _AddFormPageState extends State<AddFormPage> {
           .map((o) => DropdownMenuItem(value: o, child: Text(o)))
           .toList(),
       onChanged: (v) => setState(() => _formData[fieldName] = v),
-      validator: (v) => (v == null) ? 'Wajib dipilih' : null,
+      validator: (v) => (v == null) ? 'Wajib diisi' : null,
     );
   }
 

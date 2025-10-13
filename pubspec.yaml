@@ -29,5 +29,6 @@ dev_dependencies:
 flutter:
   uses-material-design: true
   assets:
-    - assets/
-    - assets/success_video.mp4 
+    - assets/success_loading.gif
+    - assets/check-19009726-unscreen.gif
+ 
