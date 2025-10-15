@@ -643,49 +643,102 @@ class _AdminLoginPageState extends State<AdminLoginPage> {
   String _adminId = '';
   bool _isLoading = false;
 
+  // =======================================================================
+  // INI ADALAH FUNGSI YANG DIPERBAIKI
+  // =======================================================================
   Future<void> _loginAdmin() async {
-    if (_formKey.currentState!.validate()) {
-      setState(() => _isLoading = true);
-      try {
-        final response = await http.post(
-          Uri.parse(googleAppScriptUrl), // Langsung ke GAS
-          headers: {'Content-Type': 'application/json; charset=UTF-8'},
-          body: json.encode({'action': 'adminLogin', 'admin_id': _adminId}),
-        );
+    if (!_formKey.currentState!.validate()) {
+      return;
+    }
+    setState(() => _isLoading = true);
 
-        if (!mounted) return;
-        final responseData = json.decode(response.body);
+    var client = http.Client();
+    try {
+      // Membuat request manual untuk bisa mengontrol redirect
+      var request = http.Request('POST', Uri.parse(googleAppScriptUrl))
+        ..followRedirects =
+            false // Penting: jangan ikuti redirect otomatis
+        ..headers['Content-Type'] = 'application/json; charset=UTF-8'
+        ..body = json.encode({'action': 'adminLogin', 'admin_id': _adminId});
 
-        if (responseData['status'] == 'success') {
-          final prefs = await SharedPreferences.getInstance();
-          await prefs.setBool('isAdminLoggedIn', true);
-          await prefs.setString('adminId', _adminId);
+      final streamedResponse = await client
+          .send(request)
+          .timeout(const Duration(seconds: 45));
 
-          Navigator.of(context).pushReplacement(
-            MaterialPageRoute(builder: (context) => MainPage(key: mainPageKey)),
+      // Jika server merespons dengan redirect (status code 3xx)
+      if (streamedResponse.statusCode >= 300 &&
+          streamedResponse.statusCode < 400) {
+        final newLocation = streamedResponse.headers['location'];
+        if (newLocation == null) {
+          throw Exception(
+            "Server melakukan redirect tetapi tidak memberikan lokasi baru.",
           );
+        }
+
+        print('[LOG] Redirecting to: $newLocation');
+        // Lakukan GET request ke URL baru yang diberikan oleh server
+        final secondResponse = await client.get(Uri.parse(newLocation));
+
+        if (secondResponse.statusCode == 200) {
+          _handleLoginResponse(secondResponse.body);
         } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(responseData['message'] ?? 'Login Admin Gagal!'),
-              backgroundColor: Colors.red,
-            ),
+          throw Exception(
+            'Gagal mengambil data dari URL redirect. Status: ${secondResponse.statusCode}',
           );
         }
-      } catch (e) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Terjadi kesalahan koneksi: $e'),
-            backgroundColor: Colors.red,
-          ),
+      }
+      // Jika server merespons dengan sukses (status code 200)
+      else if (streamedResponse.statusCode == 200) {
+        final response = await http.Response.fromStream(streamedResponse);
+        _handleLoginResponse(response.body);
+      }
+      // Jika server merespons dengan error lain
+      else {
+        throw Exception(
+          'Gagal menghubungi server. Status: ${streamedResponse.statusCode}',
         );
-      } finally {
-        if (mounted) {
-          setState(() => _isLoading = false);
-        }
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Terjadi kesalahan koneksi: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      client.close();
+      if (mounted) {
+        setState(() => _isLoading = false);
       }
     }
   }
+
+  // Fungsi bantuan untuk memproses respons JSON setelah berhasil didapat
+  void _handleLoginResponse(String responseBody) async {
+    if (!mounted) return;
+    final responseData = json.decode(responseBody);
+
+    if (responseData['status'] == 'success') {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool('isAdminLoggedIn', true);
+      await prefs.setString('adminId', _adminId);
+
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(builder: (context) => MainPage(key: mainPageKey)),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(responseData['message'] ?? 'Login Admin Gagal!'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+  // =======================================================================
+  // AKHIR DARI FUNGSI YANG DIPERBAIKI
+  // =======================================================================
 
   @override
   Widget build(BuildContext context) {
@@ -1399,8 +1452,10 @@ class _AllDataPageState extends State<AllDataPage> {
     super.initState();
     _isHistoryView = widget.startInHistoryView;
 
-    _loadAdminId();
-    _fetchAllData();
+    _loadAdminId().then((_) {
+      _fetchAllData();
+    });
+
     _searchController.addListener(() {
       _runFilter();
     });
@@ -1442,7 +1497,15 @@ class _AllDataPageState extends State<AllDataPage> {
     });
 
     try {
-      final uri = Uri.parse("$googleAppScriptUrl?action=getAll");
+      Uri uri;
+      if (_isHistoryView && _currentAdminId != null) {
+        uri = Uri.parse(
+          "$googleAppScriptUrl?action=getEditHistory&adminId=$_currentAdminId",
+        );
+      } else {
+        uri = Uri.parse("$googleAppScriptUrl?action=getAll");
+      }
+
       final response = await http.get(uri).timeout(const Duration(seconds: 60));
       if (response.statusCode == 200) {
         final result = json.decode(response.body);
@@ -1474,14 +1537,6 @@ class _AllDataPageState extends State<AllDataPage> {
   void _runFilter() {
     List<dynamic> results = List.from(_allData);
     final query = _searchController.text.toLowerCase();
-
-    if (_isHistoryView &&
-        _currentAdminId != null &&
-        _currentAdminId!.isNotEmpty) {
-      results = results
-          .where((item) => item['USER']?.toString() == _currentAdminId)
-          .toList();
-    }
 
     if (query.isNotEmpty) {
       results = results.where((item) {
@@ -1558,8 +1613,8 @@ class _AllDataPageState extends State<AllDataPage> {
               onPressed: () {
                 setState(() {
                   _isHistoryView = !_isHistoryView;
+                  _fetchAllData();
                 });
-                _runFilter();
               },
               tooltip: 'Tampilkan Riwayat Saya',
             ),
